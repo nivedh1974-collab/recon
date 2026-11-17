@@ -9,7 +9,7 @@ Independent portfolio build. Transaction data is simulated; the test set is 61 r
 - [x] PRD, AI behaviour spec, data dictionary
 - [x] Mock payment system: 500 UPI transactions + status API
 - [ ] Dispute classifier and reply drafter (model)
-- [ ] Rules engine and escalation (code)
+- [x] Rules engine and escalation (code)
 - [ ] Agent screens
 - [ ] Evaluation on 61 real complaints
 
@@ -39,5 +39,6 @@ recon/db.py           schema (5 tables) and RBI rules config
 recon/error_codes.py  NPCI response codes used in the mock data
 recon/seed.py         generates the 500 mock transactions
 recon/api.py          transaction status API (FastAPI)
+recon/rules_engine.py RBI deadline, compensation and escalation (no model)
 tests/                API tests
 ```
