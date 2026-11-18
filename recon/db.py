@@ -59,7 +59,9 @@ CREATE TABLE IF NOT EXISTS cases (
     sent_reply         TEXT,
     case_status        TEXT NOT NULL DEFAULT 'OPEN' CHECK (case_status IN ('OPEN', 'SENT', 'ESCALATED', 'CLOSED')),
     agent_id           TEXT,
-    closed_at          TEXT
+    created_at         TEXT,
+    closed_at          TEXT,
+    case_source        TEXT NOT NULL DEFAULT 'live' CHECK (case_source IN ('live', 'simulated'))
 );
 
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -88,7 +90,25 @@ def connect(path: Path = DB_PATH) -> sqlite3.Connection:
     return conn
 
 
+# Columns added after v1; ALTER older databases so a git pull doesn't break them.
+MIGRATIONS = {
+    "cases": {
+        "created_at": "TEXT",
+        "case_source": "TEXT NOT NULL DEFAULT 'live'",
+    },
+}
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    for table, cols in MIGRATIONS.items():
+        have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+        for col, ddl in cols.items():
+            if col not in have:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
+
+
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
+    _migrate(conn)
     conn.executemany("INSERT OR REPLACE INTO rules VALUES (?, ?, ?, ?, ?)", RULES)
     conn.commit()

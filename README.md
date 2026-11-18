@@ -11,6 +11,7 @@ Independent portfolio build. Transaction data is simulated; the test set is 61 r
 - [x] Dispute classifier (model)
 - [ ] Reply drafter (model)
 - [x] Rules engine and escalation (code)
+- [x] Ops metrics dashboard (/dashboard, /metrics)
 - [ ] Agent screens
 - [ ] Evaluation on 61 real complaints
 
@@ -19,7 +20,8 @@ Independent portfolio build. Transaction data is simulated; the test set is 61 r
 ```bash
 pip install -r requirements.txt
 python -m recon.seed            # builds data/recon.db with 500 transactions
-uvicorn recon.api:app --reload  # status API at http://127.0.0.1:8000/docs
+python -m recon.simulate         # optional: simulated agent sessions for the dashboard
+uvicorn recon.api:app --reload  # API docs at /docs, ops dashboard at /dashboard
 python -m pytest
 ```
 
@@ -54,5 +56,7 @@ recon/api.py          transaction status API (FastAPI)
 recon/rules_engine.py RBI deadline, compensation and escalation (no model)
 recon/classifier.py   reads the complaint, returns dispute type + fields (model)
 recon/evaluate.py     scores the classifier on the 61 real complaints
+recon/metrics.py      ops metrics computed from cases + audit_log
+recon/simulate.py     simulated agent sessions (clearly labelled) for the dashboard
 tests/                API tests
 ```
