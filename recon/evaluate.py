@@ -8,6 +8,8 @@ Writes data/eval_results.csv and prints the pass marks from the AI behaviour spe
 """
 import argparse
 import csv
+import os
+import sys
 from pathlib import Path
 
 from recon.classifier import classify
@@ -33,10 +35,15 @@ def main() -> None:
     with open(DATA / "complaints_test_set.csv", newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
 
+    if not os.environ.get("GROQ_API_KEY"):
+        sys.exit("GROQ_API_KEY is not set. Run: export GROQ_API_KEY=your_key")
+
     results, correct = [], 0
     for row in rows:
         want = expected_label(row["Expected type"])
         got = classify(row["Complaint text"], runs=args.runs)
+        if got["reason"].startswith("classifier error"):
+            sys.exit(f"Stopped at {row['ID']}: {got['reason']}")
         ok = got["dispute_type"] == want
         correct += ok
         results.append({
