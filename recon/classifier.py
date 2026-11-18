@@ -39,7 +39,20 @@ dispute_type, pick exactly one:
 - "Wrong UPI ID": the customer paid the wrong person, wrong number, wrong QR or same-name person by mistake.
 - "Out of scope": AutoPay/mandates, suspected fraud or scam, a payment that went through twice to the
   right person (double payment), a merchant-side display or settlement issue, cards, or wallets.
-- "Needs review": the text does not say who was paid or what went wrong. Do not guess.
+- "Needs review": the text does not say what went wrong at all. Do not guess.
+
+Tie-breakers (apply in order):
+1. Wrong person beats everything: if the customer paid the wrong person or wrong QR, it is "Wrong UPI ID"
+   even if they paid twice.
+2. "Double payment" (Out of scope) ONLY when the intended payee actually received both payments.
+   If one payment is stuck, pending, failed or not received, it is a failed payment (P2P or P2M), not a
+   double payment.
+3. Paying an individual for a crypto trade, investment, task, job or online deal that never delivered is
+   "Out of scope" with out_of_scope_reason "fraud".
+4. A UPI ID on another app (name@paytm, number@ybl) is a person unless the text names a business.
+5. If money was debited, the payment failed or the receiver didn't get it, and the text does not name a
+   shop, merchant, biller or website, treat it as "P2P failed". Use "Needs review" only when even that
+   much is missing.
 
 Rules:
 - Never invent facts. Use null for anything the complaint does not state.
