@@ -105,7 +105,8 @@ def _call_model(complaint: str, temperature: float) -> dict:
         },
         timeout=30,
     )
-    resp.raise_for_status()
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Groq {resp.status_code}: {resp.text[:300]}")
     return json.loads(resp.json()["choices"][0]["message"]["content"])
 
 
