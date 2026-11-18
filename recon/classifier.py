@@ -6,7 +6,7 @@ It does NOT decide deadlines, compensation or escalation; that is rules_engine.p
 Needs a Groq API key in the environment:
     export GROQ_API_KEY=...        (or put it in a .env file, which git ignores)
 Optional:
-    export GROQ_MODEL=llama-3.3-70b-versatile
+    export GROQ_MODEL=openai/gpt-oss-120b
 """
 import json
 import os
@@ -17,7 +17,7 @@ from typing import Optional
 import httpx
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-DEFAULT_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_MODEL = "openai/gpt-oss-120b"
 
 DISPUTE_TYPES = ["P2P failed", "P2M failed", "Wrong UPI ID", "Out of scope", "Needs review"]
 OUT_OF_SCOPE = ["AutoPay", "fraud", "double payment", "merchant display issue", "cards", "wallet"]
