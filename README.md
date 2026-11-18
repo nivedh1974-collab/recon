@@ -8,7 +8,8 @@ Independent portfolio build. Transaction data is simulated; the test set is 61 r
 
 - [x] PRD, AI behaviour spec, data dictionary
 - [x] Mock payment system: 500 UPI transactions + status API
-- [ ] Dispute classifier and reply drafter (model)
+- [x] Dispute classifier (model)
+- [ ] Reply drafter (model)
 - [x] Rules engine and escalation (code)
 - [ ] Agent screens
 - [ ] Evaluation on 61 real complaints
@@ -20,6 +21,17 @@ pip install -r requirements.txt
 python -m recon.seed            # builds data/recon.db with 500 transactions
 uvicorn recon.api:app --reload  # status API at http://127.0.0.1:8000/docs
 python -m pytest
+```
+
+### Classifier and evaluation
+
+Needs a free [Groq](https://console.groq.com/keys) API key.
+
+```bash
+export GROQ_API_KEY=your_key
+# Download the complaints sheet as CSV to data/complaints_test_set.csv, then:
+python -m recon.evaluate            # one run per complaint
+python -m recon.evaluate --runs 3   # with the agreement check
 ```
 
 ## Mock data
@@ -40,5 +52,7 @@ recon/error_codes.py  NPCI response codes used in the mock data
 recon/seed.py         generates the 500 mock transactions
 recon/api.py          transaction status API (FastAPI)
 recon/rules_engine.py RBI deadline, compensation and escalation (no model)
+recon/classifier.py   reads the complaint, returns dispute type + fields (model)
+recon/evaluate.py     scores the classifier on the 61 real complaints
 tests/                API tests
 ```
