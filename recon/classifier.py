@@ -11,6 +11,7 @@ Optional:
 import json
 import os
 import re
+import time
 from collections import Counter
 from typing import Optional
 
@@ -94,17 +95,20 @@ def _call_model(complaint: str, temperature: float) -> dict:
     key = os.environ.get("GROQ_API_KEY")
     if not key:
         raise RuntimeError("GROQ_API_KEY is not set")
-    resp = httpx.post(
-        GROQ_URL,
-        headers={"Authorization": f"Bearer {key}"},
-        json={
-            "model": os.environ.get("GROQ_MODEL", DEFAULT_MODEL),
-            "messages": _messages(complaint),
-            "temperature": temperature,
-            "response_format": {"type": "json_object"},
-        },
-        timeout=30,
-    )
+    payload = {
+        "model": os.environ.get("GROQ_MODEL", DEFAULT_MODEL),
+        "messages": _messages(complaint),
+        "temperature": temperature,
+        "response_format": {"type": "json_object"},
+    }
+    # Free tier allows ~8K tokens/minute, so expect 429s. Wait and retry.
+    for attempt in range(6):
+        resp = httpx.post(GROQ_URL, headers={"Authorization": f"Bearer {key}"}, json=payload, timeout=60)
+        if resp.status_code != 429:
+            break
+        wait = float(resp.headers.get("retry-after", 15))
+        print(f"  rate limited, waiting {wait:.0f}s")
+        time.sleep(wait)
     if resp.status_code >= 400:
         raise RuntimeError(f"Groq {resp.status_code}: {resp.text[:300]}")
     return json.loads(resp.json()["choices"][0]["message"]["content"])
