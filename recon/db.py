@@ -73,6 +73,19 @@ CREATE TABLE IF NOT EXISTS audit_log (
     new_value TEXT,
     logged_at TEXT NOT NULL
 );
+
+-- Escalations to the payment service provider bank (mock). Only created after an agent approves.
+CREATE TABLE IF NOT EXISTS escalations (
+    escalation_id   TEXT PRIMARY KEY,
+    idempotency_key TEXT UNIQUE NOT NULL,
+    txn_id          TEXT NOT NULL REFERENCES transactions(txn_id),
+    case_id         TEXT,
+    reasons         TEXT NOT NULL,          -- JSON list
+    approved_by     TEXT NOT NULL,          -- agent id; Recon never escalates on its own
+    psp_bank        TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'SUBMITTED',
+    submitted_at    TEXT NOT NULL
+);
 """
 
 RULES = [
@@ -111,8 +124,13 @@ def _migrate(conn: sqlite3.Connection) -> None:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
 
 
-def init_db(conn: sqlite3.Connection) -> None:
+def ensure_schema(conn: sqlite3.Connection) -> None:
+    """Create missing tables and columns. Safe to run on every start."""
     conn.executescript(SCHEMA)
     _migrate(conn)
+
+
+def init_db(conn: sqlite3.Connection) -> None:
+    ensure_schema(conn)
     conn.executemany("INSERT OR REPLACE INTO rules VALUES (?, ?, ?, ?, ?)", RULES)
     conn.commit()

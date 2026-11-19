@@ -86,3 +86,13 @@ def dashboard() -> str:
 table{{border-collapse:collapse;width:100%}}th,td{{border-bottom:1px solid #ddd;padding:8px;text-align:left}}
 .sim{{background:#fff4d6;padding:8px 12px;border-radius:6px}}.meta{{color:#666;font-size:14px}}</style></head>
 <body><h1>Recon ops metrics</h1>{body}</body></html>"""
+
+
+# ---------- API v1 (PRD: API spec) ----------
+from fastapi.exceptions import RequestValidationError  # noqa: E402
+
+from recon import api_v1  # noqa: E402
+
+app.include_router(api_v1.router)
+app.add_exception_handler(api_v1.ApiError, api_v1.api_error_handler)
+app.add_exception_handler(RequestValidationError, api_v1.validation_handler)

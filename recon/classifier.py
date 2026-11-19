@@ -19,6 +19,7 @@ import httpx
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 DEFAULT_MODEL = "openai/gpt-oss-120b"
+CLASSIFIER_TIMEOUT_S = 20  # per Groq call; assumption, see PRD API spec
 
 DISPUTE_TYPES = ["P2P failed", "P2M failed", "Wrong UPI ID", "Out of scope", "Needs review"]
 OUT_OF_SCOPE = ["AutoPay", "fraud", "double payment", "merchant display issue", "cards", "wallet"]
@@ -137,7 +138,7 @@ def _call_model(complaint: str, temperature: float) -> dict:
     }
     # Free tier allows ~8K tokens/minute, so expect 429s. Wait and retry.
     for attempt in range(6):
-        resp = httpx.post(GROQ_URL, headers={"Authorization": f"Bearer {key}"}, json=payload, timeout=60)
+        resp = httpx.post(GROQ_URL, headers={"Authorization": f"Bearer {key}"}, json=payload, timeout=CLASSIFIER_TIMEOUT_S)
         if resp.status_code != 429:
             break
         wait = float(resp.headers.get("retry-after", 15))
