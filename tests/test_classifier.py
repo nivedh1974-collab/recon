@@ -39,3 +39,34 @@ def test_disagreeing_runs_force_needs_review():
                     {"dispute_type": "P2P failed", "confidence": 0.9}])
     r = classify("paid seller 400", runs=3, call=lambda c, temperature: next(answers))
     assert r["dispute_type"] == "Needs review" and r["agreement"] == 2 / 3
+
+
+def test_vague_failed_payment_goes_to_needs_review():
+    r = classify("paisa kat gaya", call=fake({"dispute_type": "P2P failed", "confidence": 0.9}))
+    assert r["dispute_type"] == "Needs review" and r["confidence"] <= 0.5
+    assert r["overrides"]
+
+
+def test_detailed_failed_payment_is_kept():
+    r = classify("paid 1500 to my sister yesterday, not received",
+                 call=fake({"dispute_type": "P2P failed", "confidence": 0.9}))
+    assert r["dispute_type"] == "P2P failed" and r["overrides"] == []
+
+
+def test_wallet_transaction_is_out_of_scope():
+    txn = {"txn_type": "P2M", "funding_source": "WALLET"}
+    r = classify("added money, not credited", txn=txn, call=fake({"dispute_type": "P2M failed", "confidence": 0.96}))
+    assert r["dispute_type"] == "Out of scope" and r["out_of_scope_reason"] == "wallet"
+
+
+def test_linked_transaction_fixes_p2p_vs_p2m():
+    txn = {"txn_type": "P2P", "funding_source": "UPI"}
+    r = classify("paid 12000 to name@paytm, not received", txn=txn,
+                 call=fake({"dispute_type": "P2M failed", "confidence": 0.9}))
+    assert r["dispute_type"] == "P2P failed"
+
+
+def test_linked_transaction_skips_vague_check():
+    txn = {"txn_type": "P2P", "funding_source": "UPI"}
+    r = classify("paisa kat gaya", txn=txn, call=fake({"dispute_type": "P2P failed", "confidence": 0.9}))
+    assert r["dispute_type"] == "P2P failed"

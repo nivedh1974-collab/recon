@@ -135,6 +135,7 @@ def main() -> None:
             "id": row["ID"], "split": split_of(row), "language": language_of(row), "expected": want,
             "predicted": got["dispute_type"], "correct": ok, "confidence": got["confidence"],
             "fraud_signal": got["fraud_signal"], "reason": got["reason"],
+            "overrides": "; ".join(got.get("overrides", [])),
         })
         print(f"{row['ID']}  {'OK ' if ok else 'MISS'}  want={want:<14} got={got['dispute_type']:<14} conf={got['confidence']:.2f}")
 

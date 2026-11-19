@@ -92,6 +92,10 @@ def connect(path: Path = DB_PATH) -> sqlite3.Connection:
 
 # Columns added after v1; ALTER older databases so a git pull doesn't break them.
 MIGRATIONS = {
+    # UPI = bank account; WALLET, CARD, MANDATE (AutoPay) are out of scope for Recon.
+    "transactions": {
+        "funding_source": "TEXT NOT NULL DEFAULT 'UPI'",
+    },
     "cases": {
         "created_at": "TEXT",
         "case_source": "TEXT NOT NULL DEFAULT 'live'",

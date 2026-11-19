@@ -53,6 +53,11 @@ Tie-breakers (apply in order):
 5. If money was debited, the payment failed or the receiver didn't get it, and the text does not name a
    shop, merchant, biller or website, treat it as "P2P failed". Use "Needs review" only when even that
    much is missing.
+6. These are "Out of scope", never P2M: adding money to the customer's own wallet or app balance
+   (out_of_scope_reason "wallet"); a payment funded by a credit card (cards); a refund the merchant owes
+   for a cancelled order, ticket or booking (merchant display issue); a recurring AutoPay debit (AutoPay).
+7. If the customer also paid the same person another way (cash, another app) and is now out of pocket
+   twice, it is "Out of scope" with out_of_scope_reason "double payment".
 
 Rules:
 - Never invent facts. Use null for anything the complaint does not state.
@@ -83,6 +88,22 @@ FEW_SHOT = [
      {"dispute_type": "Out of scope", "confidence": 0.95, "amount_inr": 10000, "txn_date": None, "utr": None,
       "app": None, "fraud_signal": True, "fraud_words": ["called", "UPI PIN"], "out_of_scope_reason": "fraud",
       "reason": "Caller tricked customer into entering PIN."}),
+    ("Tried to top up my Paytm wallet with 2000, bank debited but wallet balance still zero.",
+     {"dispute_type": "Out of scope", "confidence": 0.9, "amount_inr": 2000, "txn_date": None, "utr": None,
+      "app": "Paytm", "fraud_signal": False, "fraud_words": [], "out_of_scope_reason": "wallet",
+      "reason": "Wallet top-up, not a UPI payment to someone else."}),
+    ("Flight got cancelled, airline says refund done, but the booking app still has not returned my 6400.",
+     {"dispute_type": "Out of scope", "confidence": 0.85, "amount_inr": 6400, "txn_date": None, "utr": None,
+      "app": None, "fraud_signal": False, "fraud_words": [], "out_of_scope_reason": "merchant display issue",
+      "reason": "Merchant refund for a cancelled booking, not a failed payment."}),
+    ("Paid rent 15000 using my credit card on the app, landlord says not received.",
+     {"dispute_type": "Out of scope", "confidence": 0.85, "amount_inr": 15000, "txn_date": None, "utr": None,
+      "app": None, "fraud_signal": False, "fraud_words": [], "out_of_scope_reason": "cards",
+      "reason": "Card-funded payment; card network rules apply, not UPI."}),
+    ("paisa kat gaya",
+     {"dispute_type": "Needs review", "confidence": 0.3, "amount_inr": None, "txn_date": None, "utr": None,
+      "app": None, "fraud_signal": False, "fraud_words": [], "out_of_scope_reason": None,
+      "reason": "Says money was debited but not to whom, how much or when."}),
     ("money stuck help",
      {"dispute_type": "Needs review", "confidence": 0.3, "amount_inr": None, "txn_date": None, "utr": None,
       "app": None, "fraud_signal": False, "fraud_words": [], "out_of_scope_reason": None,
@@ -154,7 +175,52 @@ def clean(raw: dict) -> dict:
     return out
 
 
-def classify(complaint: str, runs: int = 1, call=None) -> dict:
+# Fix 1 (holdout run, 19 Nov 2026): vague complaints were guessed as P2P/P2M.
+AMOUNT_RE = re.compile(r"(₹|\brs\.?|\binr\b|rupees?|\brs\b)\s*\d|\d[\d,]{1,}")
+DATE_RE = re.compile(
+    r"\d{1,2}[/-]\d{1,2}|\b\d{1,2}(st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)"
+    r"|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d|yesterday|today|\bkal\b|\baaj\b"
+    r"|\d+(\.\d+)?\s*(hours?|hrs?|days?|din)\b")
+PAYEE_RE = re.compile(
+    r"\b(friends?|dost|mother|mom|father|dad|sister|brother|bhai|wife|husband|relatives?|person|someone"
+    r"|landlord|receiver|payee|beneficiary|shop|shopkeeper|store|merchant|seller|dukan|recharged?|bills?"
+    r"|electricity|tickets?|booking|order|amazon|flipkart|swiggy|zomato|jio|airtel|vi|bsnl|irctc|petrol"
+    r"|fees?|rent|challan|gateway|payu|razorpay|upi id|number|qr|own[- ]account)\b|@")
+STATUS_RE = re.compile(r"\b(failed|declined|pending|processing|credited)\b")
+
+
+def lacks_detail(complaint: str) -> bool:
+    """True when the complaint names no amount, payee, date or payment status."""
+    t = complaint.lower()
+    return not any(r.search(t) for r in (AMOUNT_RE, DATE_RE, PAYEE_RE, STATUS_RE))
+
+
+# Fix 3: the linked transaction beats the model's guess.
+FUNDING_OUT_OF_SCOPE = {"WALLET": "wallet", "CARD": "cards", "MANDATE": "AutoPay"}
+
+
+def apply_overrides(result: dict, complaint: str, txn: Optional[dict] = None) -> dict:
+    """Code rules that run after the model. Each one leaves a note in `overrides`."""
+    notes = []
+    if txn:
+        src = (txn.get("funding_source") or "UPI").upper()
+        if src in FUNDING_OUT_OF_SCOPE and result["dispute_type"] != "Out of scope":
+            notes.append(f"transaction is {src}: out of scope (model said {result['dispute_type']})")
+            result["dispute_type"], result["out_of_scope_reason"] = "Out of scope", FUNDING_OUT_OF_SCOPE[src]
+        elif result["dispute_type"] in ("P2P failed", "P2M failed"):
+            want = f"{txn['txn_type']} failed"
+            if want != result["dispute_type"]:
+                notes.append(f"transaction is {txn['txn_type']}: {want} (model said {result['dispute_type']})")
+                result["dispute_type"] = want
+    elif result["dispute_type"] in ("P2P failed", "P2M failed") and lacks_detail(complaint):
+        notes.append(f"no amount, payee or date and no linked transaction (model said {result['dispute_type']})")
+        result["dispute_type"] = "Needs review"
+        result["confidence"] = min(result["confidence"], 0.5)
+    result["overrides"] = notes
+    return result
+
+
+def classify(complaint: str, runs: int = 1, call=None, txn: Optional[dict] = None) -> dict:
     """Classify one complaint.
 
     runs > 1 turns on the agreement check from the spec: the complaint is classified
@@ -177,6 +243,9 @@ def classify(complaint: str, runs: int = 1, call=None) -> dict:
         result["reason"] = f"Runs disagreed: {dict(labels)}. " + result["reason"]
         result["dispute_type"] = "Needs review"
         result["confidence"] = min(result["confidence"], votes / runs)
+
+    if not result["reason"].startswith("classifier error"):
+        apply_overrides(result, complaint, txn)
 
     guard_hits = fraud_guard(complaint)
     if guard_hits and not result["fraud_signal"]:
