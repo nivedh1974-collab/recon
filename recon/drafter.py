@@ -32,6 +32,10 @@ TEMPLATES = {
         "Hi, sorry for the trouble. To check this, please share the UTR (12-digit number in your payment history), "
         "the amount and the date of the payment."
     ),
+    "checking": (
+        "Hi, sorry for the trouble. We are checking the status of your payment (UTR {utr}) with the bank "
+        "and will update you as soon as we have it."
+    ),
     "out_of_scope": (
         "Hi, thanks for reaching out. We have passed this to our {route} team, who will contact you."
     ),
@@ -59,7 +63,9 @@ def draft(case: dict) -> dict:
     late_line = (f"It is {case.get('days_past_deadline')} day(s) late, so you are owed Rs {_money(comp)} "
                  f"compensation by your bank. ") if comp else ""
 
-    if dtype == "Out of scope":
+    if case.get("status_unavailable"):
+        tid = "checking"
+    elif dtype == "Out of scope":
         tid = "out_of_scope"
     elif dtype == "Wrong UPI ID":
         tid = "wrong_upi_id"

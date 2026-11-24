@@ -11,6 +11,14 @@ Recon has no "send reply" endpoint: the agent sends from their own helpdesk tool
 | `POST /v1/classify` | Model labels the complaint; code applies RBI rules | After status lookup | 20 s per model call |
 | `POST /v1/draft-reply` | Template reply for the agent to edit | After classify | 2 s |
 | `POST /v1/escalations` | Raise a case with the payment service provider bank (mock) | Agent approves | 5 s |
+| `POST /v1/cases` | Whole flow in one call, with the failure rules (below) | Case opens | sum of the above |
+
+## Failure rules
+
+- Status lookup: a timeout or error is retried once (0.5 s wait, assumption). "Not found" is not retried.
+- After two failed status checks, or a model timeout, model error, broken model answer or confidence under 0.8,
+  `/v1/cases` returns `"dispute_type": "Needs review"` with `needs_review_reasons` and `model_guess`.
+- Full edge-case table: PRD, "Failure handling".
 
 ## Sequence
 
@@ -111,4 +119,5 @@ Body: `{"error": {"code": "TXN_NOT_FOUND", "message": "No transaction for txn_id
 
 `/v1/classify` never returns a 5xx when the model fails. It returns `Needs review` with `"fallback": true`.
 
-Testing hook: header `X-Mock-Fail: timeout` or `error` makes the mock payment system or mock PSP bank fail.
+Testing hook: header `X-Mock-Fail` makes the mocks fail. `timeout` / `error`: every attempt fails.
+`timeout-once` / `error-once`: the first status check fails and the retry works.

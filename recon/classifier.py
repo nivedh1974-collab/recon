@@ -163,16 +163,21 @@ def clean(raw: dict) -> dict:
         "out_of_scope_reason": raw.get("out_of_scope_reason"),
         "reason": raw.get("reason", ""),
     }
+    problems = []
     if out["dispute_type"] not in DISPUTE_TYPES:
+        problems.append(f"dispute_type {out['dispute_type']!r} is not allowed")
         out["dispute_type"], out["confidence"] = "Needs review", 0.0
     try:
         out["confidence"] = max(0.0, min(1.0, float(out["confidence"])))
     except (TypeError, ValueError):
+        problems.append(f"confidence {out['confidence']!r} is not a number")
         out["confidence"] = 0.0
     if out["out_of_scope_reason"] not in OUT_OF_SCOPE:
         out["out_of_scope_reason"] = None
     if not isinstance(out["amount_inr"], (int, float)):
         out["amount_inr"] = None
+    out["failure"] = "schema" if problems else None
+    out["schema_problems"] = problems
     return out
 
 
@@ -234,7 +239,10 @@ def classify(complaint: str, runs: int = 1, call=None, txn: Optional[dict] = Non
         try:
             results.append(clean(call(complaint, temperature=0.0 if runs == 1 else 0.7)))
         except Exception as err:  # network, bad JSON, missing key
-            results.append(clean({"dispute_type": "Needs review", "reason": f"classifier error: {err}"}))
+            r = clean({"dispute_type": "Needs review", "confidence": 0.0,
+                       "reason": f"classifier error: {type(err).__name__}: {err}"})
+            r["failure"] = "model_timeout" if isinstance(err, httpx.TimeoutException) else "model_error"
+            results.append(r)
 
     labels = Counter(r["dispute_type"] for r in results)
     top_label, votes = labels.most_common(1)[0]

@@ -22,7 +22,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from recon import classifier, drafter
+import time
+
+from recon import case_flow, classifier, drafter, payment_system
 from recon.db import connect, ensure_schema
 from recon.error_codes import ALL_CODES
 from recon.rules_engine import decide
@@ -32,6 +34,7 @@ router = APIRouter(prefix="/v1")
 # Timeouts (seconds). Assumptions until measured; see PRD API spec.
 TIMEOUTS = {"status_lookup": 3, "classify": classifier.CLASSIFIER_TIMEOUT_S, "draft_reply": 2, "escalation": 5}
 MAX_COMPLAINT_CHARS = 4000
+SLEEP = time.sleep  # tests swap this out so retries don't wait
 
 
 class ApiError(Exception):
@@ -99,9 +102,16 @@ class StatusLookupIn(BaseModel):
 def status_lookup(body: StatusLookupIn, x_mock_fail: Optional[str] = Header(None)) -> dict:
     if not body.txn_id and not body.utr:
         raise ApiError(400, "MISSING_REFERENCE", "Send txn_id or utr")
-    _mock_fail(x_mock_fail, "STATUS", "status_lookup")
     with _conn() as conn:
-        t = _load_txn(conn, body.txn_id, body.utr)
+        res = payment_system.lookup_with_retry(conn, body.txn_id, body.utr, x_mock_fail, sleep=SLEEP)
+    if res.failed:
+        code = "STATUS_TIMEOUT" if res.outcome == "timeout" else "STATUS_ERROR"
+        raise ApiError(504 if res.outcome == "timeout" else 502, code,
+                       f"Status check failed after {res.attempts} attempts: " + "; ".join(res.notes))
+    if res.outcome == "not_found":
+        ref = f"txn_id {body.txn_id}" if body.txn_id else f"UTR {body.utr}"
+        raise ApiError(404, "TXN_NOT_FOUND", f"No transaction for {ref}")
+    t = res.txn
     return {
         "txn_id": t["txn_id"], "utr": t["utr"], "txn_type": t["txn_type"], "amount_inr": t["amount_inr"],
         "status": t["status"], "debited": t["debited"], "credited": t["credited"],
@@ -109,6 +119,7 @@ def status_lookup(body: StatusLookupIn, x_mock_fail: Optional[str] = Header(None
         "reversal_status": t["reversal_status"], "reversed_at": t["reversed_at"],
         "funding_source": t.get("funding_source", "UPI"), "created_at": t["created_at"],
         "checked_at": datetime.now().isoformat(timespec="seconds"), "source": "mock payment system",
+        "attempts": res.attempts,
     }
 
 
@@ -215,3 +226,21 @@ def create_escalation(body: EscalationIn, idempotency_key: Optional[str] = Heade
         conn.commit()
         row = conn.execute("SELECT * FROM escalations WHERE escalation_id = ?", (esc_id,)).fetchone()
     return _esc_out(row)
+
+
+# ---------- 5. Open a case (status lookup + classify + rules + draft, with failure rules) ----------
+class CaseIn(BaseModel):
+    complaint_text: str = Field(min_length=1)
+    txn_id: Optional[str] = None
+    utr: Optional[str] = None
+
+
+@router.post("/cases")
+def open_case(body: CaseIn, x_mock_fail: Optional[str] = Header(None)) -> dict:
+    text = body.complaint_text.strip()
+    if not text:
+        raise ApiError(400, "INVALID_INPUT", "complaint_text is empty")
+    if len(text) > MAX_COMPLAINT_CHARS:
+        raise ApiError(413, "COMPLAINT_TOO_LONG", f"complaint_text is over {MAX_COMPLAINT_CHARS} characters")
+    with _conn() as conn:
+        return case_flow.open_case(conn, text, body.txn_id, body.utr, x_mock_fail, sleep=SLEEP)

@@ -9,6 +9,7 @@ Independent portfolio build. Transaction data is simulated; the test set is 61 r
 - [x] PRD, AI behaviour spec, data dictionary
 - [x] Mock payment system: 500 UPI transactions + status API
 - [x] API v1: status lookup, classify, draft reply, PSP escalation (spec: docs/api.md)
+- [x] Failure handling: one status retry, then Needs review with the reason shown
 - [x] Dispute classifier (model)
 - [ ] Reply drafter (model)
 - [x] Rules engine and escalation (code)
@@ -56,6 +57,8 @@ recon/seed.py         generates the 500 mock transactions
 recon/api.py          transaction status API (FastAPI)
 recon/api_v1.py       API v1 endpoints (see docs/api.md)
 recon/drafter.py      template reply drafter (never sends)
+recon/case_flow.py    opens a case end to end, applies failure rules
+recon/payment_system.py  mock payment system client, one retry
 recon/rules_engine.py RBI deadline, compensation and escalation (no model)
 recon/classifier.py   reads the complaint, returns dispute type + fields (model)
 recon/evaluate.py     scores the classifier on the 61 real complaints
