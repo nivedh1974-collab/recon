@@ -1,8 +1,11 @@
 """SQLite schema for Recon. Matches the Data dictionary tab in the PRD."""
+import os
 import sqlite3
 from pathlib import Path
+from typing import Optional
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "recon.db"
+# RECON_DB lets tests use a throwaway database, so test cases never land in the real audit log.
+DB_PATH = Path(os.environ.get("RECON_DB") or Path(__file__).resolve().parent.parent / "data" / "recon.db")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS transactions (
@@ -86,6 +89,21 @@ CREATE TABLE IF NOT EXISTS escalations (
     status          TEXT NOT NULL DEFAULT 'SUBMITTED',
     submitted_at    TEXT NOT NULL
 );
+
+-- Audit log is append-only. Only simulated demo rows (CASE-SIM...) can be cleared, so the
+-- simulator can be re-run. Real case history can't be edited or deleted through the database.
+CREATE TRIGGER IF NOT EXISTS audit_log_no_update
+BEFORE UPDATE ON audit_log
+BEGIN
+    SELECT RAISE(ABORT, 'audit_log is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS audit_log_no_delete
+BEFORE DELETE ON audit_log
+WHEN old.case_id NOT LIKE 'CASE-SIM%'
+BEGIN
+    SELECT RAISE(ABORT, 'audit_log is append-only');
+END;
 """
 
 RULES = [
@@ -95,7 +113,8 @@ RULES = [
 ]
 
 
-def connect(path: Path = DB_PATH) -> sqlite3.Connection:
+def connect(path: Optional[Path] = None) -> sqlite3.Connection:
+    path = path or DB_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
@@ -112,6 +131,12 @@ MIGRATIONS = {
     "cases": {
         "created_at": "TEXT",
         "case_source": "TEXT NOT NULL DEFAULT 'live'",
+        # Audit (PRD: Controls). Full snapshot of what Recon saw and decided when the case opened.
+        "case_record": "TEXT",
+        "model_guess": "TEXT",
+        "needs_review_reasons": "TEXT",
+        "model": "TEXT",
+        "prompt_version": "TEXT",
     },
 }
 

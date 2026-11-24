@@ -126,6 +126,12 @@ def _messages(complaint: str) -> list:
     return msgs
 
 
+def prompt_version() -> str:
+    """Short hash of the prompt and examples, stored on every case so a label can be traced to its prompt."""
+    import hashlib
+    return hashlib.sha256((SYSTEM_PROMPT + json.dumps(FEW_SHOT, sort_keys=True)).encode()).hexdigest()[:12]
+
+
 def _call_model(complaint: str, temperature: float) -> dict:
     key = os.environ.get("GROQ_API_KEY")
     if not key:

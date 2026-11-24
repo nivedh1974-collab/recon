@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field
 
 import time
 
-from recon import case_flow, classifier, drafter, payment_system
+from recon import case_flow, case_store, classifier, drafter, payment_system
 from recon.db import connect, ensure_schema
 from recon.error_codes import ALL_CODES
 from recon.rules_engine import decide
@@ -216,6 +216,11 @@ def create_escalation(body: EscalationIn, idempotency_key: Optional[str] = Heade
                                 (body.txn_id,)).fetchone()
         if open_one:
             raise ApiError(409, "ALREADY_ESCALATED", f"{body.txn_id} already has escalation {open_one[0]}")
+        if body.case_id:
+            try:
+                case_store.get_case(conn, body.case_id)
+            except case_store.CaseError as e:
+                raise ApiError(e.status, e.code, e.message)
         _mock_fail(x_mock_fail, "PSP", "escalation")
         esc_id = "ESC-" + uuid.uuid4().hex[:8].upper()
         conn.execute(
@@ -224,6 +229,8 @@ def create_escalation(body: EscalationIn, idempotency_key: Optional[str] = Heade
              _psp_bank(t["app"]), datetime.now().isoformat(timespec="seconds")),
         )
         conn.commit()
+        if body.case_id:
+            case_store.log_escalation(conn, body.case_id, body.approved_by, esc_id, body.reasons)
         row = conn.execute("SELECT * FROM escalations WHERE escalation_id = ?", (esc_id,)).fetchone()
     return _esc_out(row)
 
@@ -243,4 +250,32 @@ def open_case(body: CaseIn, x_mock_fail: Optional[str] = Header(None)) -> dict:
     if len(text) > MAX_COMPLAINT_CHARS:
         raise ApiError(413, "COMPLAINT_TOO_LONG", f"complaint_text is over {MAX_COMPLAINT_CHARS} characters")
     with _conn() as conn:
-        return case_flow.open_case(conn, text, body.txn_id, body.utr, x_mock_fail, sleep=SLEEP)
+        result = case_flow.open_case(conn, text, body.txn_id, body.utr, x_mock_fail, sleep=SLEEP)
+        result["case_id"] = case_store.save_new_case(conn, result, text, body.txn_id, body.utr)
+    return result
+
+
+# ---------- 6. Case record and history (PRD: Controls) ----------
+class CaseEventIn(BaseModel):
+    agent_id: str = Field(min_length=1)
+    event: str
+    value: Optional[str] = None
+    note: Optional[str] = None
+
+
+@router.get("/cases/{case_id}")
+def get_case(case_id: str) -> dict:
+    with _conn() as conn:
+        try:
+            return case_store.get_case(conn, case_id)
+        except case_store.CaseError as e:
+            raise ApiError(e.status, e.code, e.message)
+
+
+@router.post("/cases/{case_id}/events")
+def case_event(case_id: str, body: CaseEventIn) -> dict:
+    with _conn() as conn:
+        try:
+            return case_store.agent_event(conn, case_id, body.agent_id, body.event, body.value, body.note)
+        except case_store.CaseError as e:
+            raise ApiError(e.status, e.code, e.message)

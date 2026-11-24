@@ -11,7 +11,10 @@ Recon has no "send reply" endpoint: the agent sends from their own helpdesk tool
 | `POST /v1/classify` | Model labels the complaint; code applies RBI rules | After status lookup | 20 s per model call |
 | `POST /v1/draft-reply` | Template reply for the agent to edit | After classify | 2 s |
 | `POST /v1/escalations` | Raise a case with the payment service provider bank (mock) | Agent approves | 5 s |
-| `POST /v1/cases` | Whole flow in one call, with the failure rules (below) | Case opens | sum of the above |
+| `POST /v1/cases` | Whole flow in one call, with the failure rules (below). Stores the case | Case opens | sum of the above |
+| `GET /v1/cases/{id}` | Case record at open + full history | Any time | - |
+| `POST /v1/cases/{id}/events` | Agent step: `opened`, `dispute_type_changed` (needs `note`), `reply_sent` (`value` = text sent), `closed` | Each agent step | - |
+| `GET /cases/{id}` | Case history page (HTML) | Any time | - |
 
 ## Failure rules
 
@@ -113,6 +116,9 @@ Body: `{"error": {"code": "TXN_NOT_FOUND", "message": "No transaction for txn_id
 | 404 | TXN_NOT_FOUND | No transaction for that id or UTR |
 | 409 | ALREADY_ESCALATED | Transaction already has an open escalation |
 | 409 | DRAFT_NOT_ALLOWED | Possible fraud: no reply is drafted |
+| 400 | NOTE_REQUIRED | Dispute type changed without a note |
+| 404 | CASE_NOT_FOUND | No case with that id |
+| 409 | CASE_CLOSED | Step sent to a closed case |
 | 413 | COMPLAINT_TOO_LONG | Complaint over 4,000 characters (assumption) |
 | 502 | STATUS_ERROR, PSP_ERROR | Mock system returned an error |
 | 504 | STATUS_TIMEOUT, PSP_TIMEOUT | Mock system did not answer in time |
@@ -121,3 +127,10 @@ Body: `{"error": {"code": "TXN_NOT_FOUND", "message": "No transaction for txn_id
 
 Testing hook: header `X-Mock-Fail` makes the mocks fail. `timeout` / `error`: every attempt fails.
 `timeout-once` / `error-once`: the first status check fails and the retry works.
+
+## Audit log
+
+Every case stores a snapshot at open (`cases.case_record`): complaint, status lookup, model name and prompt
+version, model output, Needs review reasons, rules decision, draft. Every step after that is one row in
+`audit_log` (actor = `recon` or the agent id). Database triggers refuse UPDATE and DELETE on `audit_log`;
+only simulated demo rows (`CASE-SIM...`) can be cleared. Pass `case_id` on an escalation to log it on the case.

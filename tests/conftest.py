@@ -1,20 +1,17 @@
-"""Build the mock database before tests if it is missing or empty (it is gitignored)."""
-import sqlite3
+"""Tests run on a fresh throwaway database, never on data/recon.db.
 
-from recon import seed
-from recon.db import DB_PATH
+The audit log is append-only, so test cases written to the real database could never be removed.
+RECON_DB is set before any recon module is imported.
+"""
+import os
+import tempfile
+from pathlib import Path
 
+_tmp = Path(tempfile.mkdtemp(prefix="recon-test-")) / "recon.db"
+os.environ["RECON_DB"] = str(_tmp)
 
-def _has_transactions() -> bool:
-    if not DB_PATH.exists():
-        return False
-    try:
-        with sqlite3.connect(DB_PATH) as conn:
-            return conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0] > 0
-    except sqlite3.OperationalError:
-        return False
+from recon import seed  # noqa: E402
 
 
 def pytest_sessionstart(session):
-    if not _has_transactions():
-        seed.main()
+    seed.main()

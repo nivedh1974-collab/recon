@@ -96,3 +96,52 @@ from recon import api_v1  # noqa: E402
 app.include_router(api_v1.router)
 app.add_exception_handler(api_v1.ApiError, api_v1.api_error_handler)
 app.add_exception_handler(RequestValidationError, api_v1.validation_handler)
+
+
+# ---------- Case history view (PRD: Controls) ----------
+import html as _html  # noqa: E402
+import json as _json  # noqa: E402
+
+from recon import case_store  # noqa: E402
+
+
+@app.get("/cases/{case_id}", response_class=HTMLResponse)
+def case_history_page(case_id: str) -> HTMLResponse:
+    esc = _html.escape
+    with connect() as conn:
+        try:
+            c = case_store.get_case(conn, case_id)
+        except case_store.CaseError:
+            return HTMLResponse("<p>No such case.</p>", status_code=404)
+    rec = c["record_at_open"] or {}
+    model = rec.get("model", {})
+    d = rec.get("decision", {})
+    reasons = "".join(f"<li>{esc(r)}</li>" for r in rec.get("needs_review_reasons", [])) or "<li>None</li>"
+    summary = [
+        ("Status", c["case_status"]), ("Dispute type now", c["dispute_type"]),
+        ("Model guess", f"{model.get('guess')} ({model.get('confidence')})"),
+        ("Model / prompt", f"{model.get('name')} / {model.get('prompt_version')}"),
+        ("Rule, deadline", f"{d.get('rule_id') or '-'}, {d.get('deadline_date') or '-'}"),
+        ("Compensation", f"Rs {d.get('compensation_inr', 0)}"), ("Agent", c["agent_id"] or "-"),
+    ]
+    srows = "".join(f"<tr><th>{esc(a)}</th><td>{esc(str(b))}</td></tr>" for a, b in summary)
+    hrows = "".join(
+        f"<tr><td>{esc(h['logged_at'])}</td><td>{esc(h['actor'])}</td><td>{esc(h['action'])}</td>"
+        f"<td>{esc(h['old_value'] or '')}</td><td>{esc(h['new_value'] or '')}</td></tr>" for h in c["history"])
+    complaint = esc(rec.get("complaint", {}).get("text", ""))
+    record_json = esc(_json.dumps(rec, indent=2))
+    return HTMLResponse(f"""<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Case {esc(case_id)}</title>
+<style>body{{font:14px/1.5 system-ui,sans-serif;max-width:960px;margin:24px auto;padding:0 16px;color:#1f2328}}
+table{{border-collapse:collapse;width:100%;margin:8px 0 24px}}td,th{{border-bottom:1px solid #d0d7de;padding:6px 8px;
+text-align:left;vertical-align:top}}th{{width:180px;color:#57606a;font-weight:500}}
+blockquote{{margin:0;padding:8px 12px;background:#f6f8fa;border-left:3px solid #d0d7de}}
+pre{{background:#f6f8fa;padding:12px;overflow-x:auto;font-size:12px}}.note{{color:#57606a}}</style></head><body>
+<h1>Case {esc(case_id)}</h1>
+<p class="note">History is append-only. Nothing here can be edited or deleted.</p>
+<h2>Complaint</h2><blockquote>{complaint}</blockquote>
+<h2>Summary</h2><table>{srows}</table>
+<h2>Needs review reasons at open</h2><ul>{reasons}</ul>
+<h2>History</h2><table><tr><th>When</th><th>Who</th><th>What</th><th>Before</th><th>After</th></tr>{hrows}</table>
+<details><summary>Full record at open (JSON)</summary><pre>{record_json}</pre></details>
+</body></html>""")
