@@ -286,7 +286,7 @@ def baseline_screen():
 
     if key in done:
         d = done[key]
-        st.success(f"Done in {d['seconds']} s. Correct: {d['correct']}")
+        st.success(f"Done in {d['seconds']} s. Scores show once all 12 cases are done.")
     elif not run:
         if st.button("Start", type="primary"):
             if key[0] == "A":
@@ -337,7 +337,7 @@ def baseline_screen():
                 res = bl.finish(conn, run, {"dispute_type": dtype, "deadline_date": None if no_dl else dl.isoformat(),
                                             "compensation_inr": comp, "next_step": step})
                 st.session_state.pop(f"run_{agent}_{key}")
-                st.success(f"{res['seconds']} s. Correct: {res['correct']}. Expected: {res['expected']}")
+                st.success(f"Saved: {res['seconds']} s. Answers stay hidden until all 12 are done.")
     else:
         case_id = conn.execute("SELECT case_id FROM baseline_runs WHERE run_id = ?", (run,)).fetchone()[0]
         st.info(f"Work the case on the Case screen ({case_id}): send the reply, escalate or route it. "
@@ -350,10 +350,14 @@ def baseline_screen():
             else:
                 res = bl.finish(conn, run, answers, finished_at=end)
                 st.session_state.pop(f"run_{agent}_{key}")
-                st.success(f"{res['seconds']} s. Correct: {res['correct']}. Expected: {res['expected']}")
+                st.success(f"Saved: {res['seconds']} s. Answers stay hidden until all 12 are done.")
 
     st.divider()
-    st.subheader("Results so far")
+    if len(done) < len(keys):
+        st.caption(f"{len(done)} of {len(keys)} done. Results appear when all are done, so earlier answers "
+                   "can't teach you later ones.")
+        return
+    st.subheader("Results")
     r = bl.report(conn)
     st.caption(f"Testers: {r['testers']}. Small sample: shows direction, not a production number.")
     st.dataframe(pd.DataFrame([{"Mode": m, **r[m]} for m in ("manual", "recon")]), hide_index=True)
