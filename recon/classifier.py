@@ -37,7 +37,10 @@ FRAUD_SIGNALS = {
     "remote access app": [r"anydesk|teamviewer|quick ?support|screen ?shar|remote access"],
     "fake customer care": [r"customer care (number )?(from|on) google",
                            r"fake (customer care|call|link|app|website|number|agent)"],
-    "collect or QR trick": [r"(scan|scanned)\b.{0,30}\breceive", r"collect request"],
+    "collect or QR trick": [r"(scan|scanned)\b.{0,30}\breceive", r"collect request",
+                            r"\bqr\b.{0,120}\b(credited to (you|your)|to receive|receive (the )?(money|payment|amount))"],
+    "fake army buyer or seller": [r"\barmy (officer|personnel|person|man|card|canteen|payment|swipe)",
+                                  r"(claim|claiming|claimed|posed|introduced)\w* .{0,40}\barmy\b"],
     "scam words": [r"\bscam", r"\bcheat(ed|ing)?\b", r"\bfraudster", r"\bfraudulent\b", r"\bhack(ed|er|ing)?\b",
                    r"\bfraud (call|caller|link|message|sms|happened|attempt|case|person|with me)",
                    r"(victim of|been|got) (a )?fraud", r"\bdefraud", r"\bthag", r"dhokha",
@@ -76,6 +79,9 @@ Tie-breakers (apply in order):
 6. These are "Out of scope", never P2M: adding money to the customer's own wallet or app balance
    (out_of_scope_reason "wallet"); a payment funded by a credit card (cards); a refund the merchant owes
    for a cancelled order, ticket or booking (merchant display issue); a recurring AutoPay debit (AutoPay).
+   A merchant refund means the payment went through and the order was cancelled later. If the payment
+   itself failed and the order, ticket, policy or recharge was never issued, it is "P2M failed", even when
+   the app says "your money will be refunded".
 7. If the customer also paid the same person another way (cash, another app) and is now out of pocket
    twice, it is "Out of scope" with out_of_scope_reason "double payment".
 
@@ -108,6 +114,11 @@ FEW_SHOT = [
      {"dispute_type": "Out of scope", "confidence": 0.95, "amount_inr": 10000, "txn_date": None, "utr": None,
       "app": None, "fraud_signal": True, "fraud_words": ["called", "UPI PIN"], "out_of_scope_reason": "fraud",
       "reason": "Caller tricked customer into entering PIN."}),
+    ("Booked a bus ticket for 1,250, payment failed and ticket not issued. App says money will be refunded in "
+     "5-7 days but nothing yet.",
+     {"dispute_type": "P2M failed", "confidence": 0.9, "amount_inr": 1250, "txn_date": None, "utr": None,
+      "app": None, "fraud_signal": False, "fraud_words": [], "out_of_scope_reason": None,
+      "reason": "Payment failed and the ticket was never issued; a refund promise doesn't make it a merchant refund."}),
     ("Tried to top up my Paytm wallet with 2000, bank debited but wallet balance still zero.",
      {"dispute_type": "Out of scope", "confidence": 0.9, "amount_inr": 2000, "txn_date": None, "utr": None,
       "app": "Paytm", "fraud_signal": False, "fraud_words": [], "out_of_scope_reason": "wallet",

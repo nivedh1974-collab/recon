@@ -93,3 +93,19 @@ def test_agent_routes_or_clears_with_note(model):
     cid2 = client.post("/v1/cases", json={"complaint_text": "hacked account, 9000 gone"}).json()["case_id"]
     got2 = client.post(f"/v1/cases/{cid2}/events", json={"agent_id": "A03", "event": "fraud_routed"}).json()
     assert got2["case_status"] == "ESCALATED" and got2["history"][-1]["action"] == "routed_to_fraud_team"
+
+
+@pytest.mark.parametrize("text,signal", [
+    ("Buyer said he is an army officer and can only pay by army card, asked me to pay 1 rupee first",
+     "fake army buyer or seller"),
+    ("Seller claiming to be from the army sent bike photos and asked for 5000 transport charge",
+     "fake army buyer or seller"),
+    ("He sent a QR on WhatsApp and said scan it and the amount will be credited to your account",
+     "collect or QR trick"),
+])
+def test_marketplace_scam_signals(text, signal):
+    assert signal in fraud_guard(text)
+
+
+def test_army_word_alone_is_not_fraud():
+    assert fraud_guard("My brother in the army sent me 2000, it is not credited yet") == []
