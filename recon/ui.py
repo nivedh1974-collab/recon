@@ -5,7 +5,12 @@ By default the API runs in-process (one command). Set RECON_API=http://127.0.0.1
 running uvicorn server instead. Recon never sends a reply: the agent sends it from the helpdesk.
 """
 import os
+import sys
 import uuid
+from pathlib import Path
+
+# `streamlit run recon/ui.py` puts recon/ on the path, not the repo root, so `import recon` would fail.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pandas as pd
 import streamlit as st
