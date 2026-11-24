@@ -69,7 +69,7 @@ if "goto" in st.session_state:
     st.session_state["page"] = st.session_state.pop("goto")
 agent = st.sidebar.text_input("Your agent id", value=st.session_state.get("agent", "A01"))
 st.session_state["agent"] = agent
-page = st.sidebar.radio("Screen", ["Queue", "Case", "New case"], key="page")
+page = st.sidebar.radio("Screen", ["Queue", "Case", "New case", "Baseline"], key="page")
 if not os.environ.get("GROQ_API_KEY") and not os.environ.get("RECON_DEMO_MODEL"):
     st.sidebar.warning("GROQ_API_KEY is not set. Model calls will fail and new cases go to Needs review.")
 if os.environ.get("RECON_DEMO_MODEL"):
@@ -267,4 +267,96 @@ def new_case_screen():
         st.error(res)
 
 
-{"Queue": queue_screen, "Case": case_screen, "New case": new_case_screen}[page]()
+# ---------- Baseline (PRD: Validation) ----------
+def baseline_screen():
+    from recon import baseline as bl
+    from recon.db import connect
+    conn = connect()
+    bl.ensure_table(conn)
+    st.header("Manual baseline")
+    st.caption("Set A by hand, set B with Recon. Same tester, different cases, so no case is seen twice. "
+               "The timer starts when you click Start.")
+    done = {r["case_key"]: dict(r) for r in conn.execute(
+        "SELECT * FROM baseline_runs WHERE agent_id = ? AND seconds IS NOT NULL", (agent,))}
+    keys = [c[0] for s in ("A", "B") for c in bl.CASES[s]]
+    labels = {k: f"{k} · {'by hand' if k[0] == 'A' else 'with Recon'}" + (" · done" if k in done else "")
+              for k in keys}
+    key = st.selectbox("Case", keys, format_func=labels.get)
+    run = st.session_state.get(f"run_{agent}_{key}")
+
+    if key in done:
+        d = done[key]
+        st.success(f"Done in {d['seconds']} s. Correct: {d['correct']}")
+    elif not run:
+        if st.button("Start", type="primary"):
+            if key[0] == "A":
+                st.session_state[f"run_{agent}_{key}"] = bl.start(conn, key, agent)
+            else:
+                v = bl.case_view(conn, key)
+                body = {"complaint_text": v["complaint"]}
+                if v["txn"]:
+                    body["txn_id"] = v["txn"]["txn_id"]
+                run_id = bl.start(conn, key, agent)
+                ok, res = call("POST", "/v1/cases", json=body)
+                if not ok:
+                    st.error(res)
+                    return
+                conn.execute("UPDATE baseline_runs SET case_id = ? WHERE run_id = ?", (res["case_id"], run_id))
+                conn.commit()
+                st.session_state[f"run_{agent}_{key}"] = run_id
+                open_case(res["case_id"])
+            st.rerun()
+    elif key[0] == "A":
+        v = bl.case_view(conn, key)
+        st.subheader("Complaint")
+        st.write(v["complaint"])
+        if v["txn"]:
+            st.subheader("Transaction record (admin tool)")
+            st.dataframe(pd.DataFrame([{k: v["txn"][k] for k in (
+                "txn_id", "utr", "txn_type", "app", "amount_inr", "status", "debited", "credited", "error_code",
+                "reversal_status", "reversed_at", "created_at", "payee_name")}]), hide_index=True)
+        else:
+            st.write("No UTR given.")
+        with st.expander("RBI rules cheat sheet", expanded=True):
+            st.markdown("- P2P debited, not credited: reversal by **T+1**. P2M: **T+5**. T = payment date.\n"
+                        "- After that, **Rs 100 per day** late, owed by the bank.\n"
+                        "- Escalate to the PSP bank if past the deadline, pending/unknown, or over Rs 10,000.\n"
+                        "- Money never debited: no refund due. Wrong UPI ID: no deadline, no compensation.\n"
+                        f"- Today is {pd.Timestamp.today():%d %b %Y}.")
+        with st.form(f"manual_{key}"):
+            dtype = st.selectbox("Dispute type", bl.TYPES)
+            no_dl = st.checkbox("No deadline applies")
+            dl = st.date_input("RBI deadline")
+            comp = st.number_input("Compensation owed (Rs)", min_value=0, step=100)
+            step = st.selectbox("Next step", bl.NEXT_STEPS)
+            reply = st.text_area("Reply to customer (required unless routed to the fraud team)", height=120)
+            if st.form_submit_button("Submit (stops the timer)", type="primary"):
+                if not reply.strip() and step != "Route to fraud team":
+                    st.error("Write the reply first, as you would for a real customer. The timer is still running.")
+                    st.stop()
+                res = bl.finish(conn, run, {"dispute_type": dtype, "deadline_date": None if no_dl else dl.isoformat(),
+                                            "compensation_inr": comp, "next_step": step})
+                st.session_state.pop(f"run_{agent}_{key}")
+                st.success(f"{res['seconds']} s. Correct: {res['correct']}. Expected: {res['expected']}")
+    else:
+        case_id = conn.execute("SELECT case_id FROM baseline_runs WHERE run_id = ?", (run,)).fetchone()[0]
+        st.info(f"Work the case on the Case screen ({case_id}): send the reply, escalate or route it. "
+                "Then come back here and record the result.")
+        st.button("Go to case", on_click=open_case, args=(case_id,))
+        if st.button("Record result", type="primary"):
+            answers, end = bl.recon_answers(conn, case_id)
+            if not end:
+                st.error("Not done yet: send the reply, route it to the fraud team, or close it first.")
+            else:
+                res = bl.finish(conn, run, answers, finished_at=end)
+                st.session_state.pop(f"run_{agent}_{key}")
+                st.success(f"{res['seconds']} s. Correct: {res['correct']}. Expected: {res['expected']}")
+
+    st.divider()
+    st.subheader("Results so far")
+    r = bl.report(conn)
+    st.caption(f"Testers: {r['testers']}. Small sample: shows direction, not a production number.")
+    st.dataframe(pd.DataFrame([{"Mode": m, **r[m]} for m in ("manual", "recon")]), hide_index=True)
+
+
+{"Queue": queue_screen, "Case": case_screen, "New case": new_case_screen, "Baseline": baseline_screen}[page]()

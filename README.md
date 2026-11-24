@@ -13,6 +13,7 @@ Independent portfolio build. Transaction data is simulated; the test set is 61 r
 - [x] Audit log: full case record at open, append-only history, case history page at /cases/{id}
 - [x] Possible-fraud flag: route to fraud team, money path held, agent confirms or clears
 - [x] Agent screens (Streamlit): queue, case view with actions, case history
+- [x] End-to-end tests (tests/test_e2e.py) and manual baseline screen (Baseline tab; `python -m recon.baseline report`)
 - [x] Dispute classifier (model)
 - [ ] Reply drafter (model)
 - [x] Rules engine and escalation (code)
