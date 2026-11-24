@@ -3,6 +3,7 @@
     python -m recon.evaluate                  # all rows
     python -m recon.evaluate --split holdout  # holdout only (the real score)
     python -m recon.evaluate --split dev
+    python -m recon.evaluate --split holdout2 # fresh batch, 24 Nov 2026 (20 fraud complaints)
     python -m recon.evaluate --runs 3         # agreement check (uses 3x the Groq budget)
 
 Test set: data/complaints_test_set.csv. Optional columns:
@@ -122,7 +123,7 @@ def report_md(s: dict, split: str, model: str) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--runs", type=int, default=1)
-    parser.add_argument("--split", choices=["all", "dev", "holdout"], default="all")
+    parser.add_argument("--split", choices=["all", "dev", "holdout", "holdout2"], default="all")
     args = parser.parse_args()
 
     from recon.classifier import DEFAULT_MODEL, classify
