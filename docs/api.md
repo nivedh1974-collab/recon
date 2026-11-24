@@ -13,7 +13,7 @@ Recon has no "send reply" endpoint: the agent sends from their own helpdesk tool
 | `POST /v1/escalations` | Raise a case with the payment service provider bank (mock) | Agent approves | 5 s |
 | `POST /v1/cases` | Whole flow in one call, with the failure rules (below). Stores the case | Case opens | sum of the above |
 | `GET /v1/cases/{id}` | Case record at open + full history | Any time | - |
-| `POST /v1/cases/{id}/events` | Agent step: `opened`, `dispute_type_changed` (needs `note`), `reply_sent` (`value` = text sent), `closed` | Each agent step | - |
+| `POST /v1/cases/{id}/events` | Agent step: `opened`, `dispute_type_changed` (needs `note`), `reply_sent` (`value` = text sent), `fraud_routed`, `fraud_cleared` (needs `note`; re-runs rules and draft), `closed` | Each agent step | - |
 | `GET /cases/{id}` | Case history page (HTML) | Any time | - |
 
 ## Failure rules
@@ -115,6 +115,8 @@ Body: `{"error": {"code": "TXN_NOT_FOUND", "message": "No transaction for txn_id
 | 400 | MISSING_IDEMPOTENCY_KEY | Escalation without the header |
 | 404 | TXN_NOT_FOUND | No transaction for that id or UTR |
 | 409 | ALREADY_ESCALATED | Transaction already has an open escalation |
+| 409 | FRAUD_HOLD | Escalation to the payment service provider bank on a possible-fraud case |
+| 409 | NOT_FLAGGED | fraud_routed / fraud_cleared on a case without the flag |
 | 409 | DRAFT_NOT_ALLOWED | Possible fraud: no reply is drafted |
 | 400 | NOTE_REQUIRED | Dispute type changed without a note |
 | 404 | CASE_NOT_FOUND | No case with that id |
@@ -134,3 +136,10 @@ Every case stores a snapshot at open (`cases.case_record`): complaint, status lo
 version, model output, Needs review reasons, rules decision, draft. Every step after that is one row in
 `audit_log` (actor = `recon` or the agent id). Database triggers refuse UPDATE and DELETE on `audit_log`;
 only simulated demo rows (`CASE-SIM...`) can be cleared. Pass `case_id` on an escalation to log it on the case.
+
+## Possible fraud
+
+If the model flags fraud or a code signal matches (`classifier.FRAUD_SIGNALS`), `/v1/cases` returns
+`"headline": "Possible fraud: route to fraud team"` and `possible_fraud.signals`. No deadline, compensation
+or draft; escalation to the payment service provider bank is refused with `FRAUD_HOLD`. The agent sends
+`fraud_routed` or `fraud_cleared` (with a note).

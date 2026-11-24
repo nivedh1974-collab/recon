@@ -11,6 +11,7 @@ Independent portfolio build. Transaction data is simulated; the test set is 61 r
 - [x] API v1: status lookup, classify, draft reply, PSP escalation (spec: docs/api.md)
 - [x] Failure handling: one status retry, then Needs review with the reason shown
 - [x] Audit log: full case record at open, append-only history, case history page at /cases/{id}
+- [x] Possible-fraud flag: route to fraud team, money path held, agent confirms or clears
 - [x] Dispute classifier (model)
 - [ ] Reply drafter (model)
 - [x] Rules engine and escalation (code)

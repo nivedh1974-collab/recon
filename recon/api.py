@@ -119,6 +119,8 @@ def case_history_page(case_id: str) -> HTMLResponse:
     reasons = "".join(f"<li>{esc(r)}</li>" for r in rec.get("needs_review_reasons", [])) or "<li>None</li>"
     summary = [
         ("Status", c["case_status"]), ("Dispute type now", c["dispute_type"]),
+        ("Possible fraud", "YES: route to fraud team" if c["possible_fraud"] else "no"),
+        ("Fraud signals at open", ", ".join((rec.get("possible_fraud") or {}).get("signals", [])) or "-"),
         ("Model guess", f"{model.get('guess')} ({model.get('confidence')})"),
         ("Model / prompt", f"{model.get('name')} / {model.get('prompt_version')}"),
         ("Rule, deadline", f"{d.get('rule_id') or '-'}, {d.get('deadline_date') or '-'}"),

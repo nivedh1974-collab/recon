@@ -71,7 +71,9 @@ def decide(
         d.route_to = OUT_OF_SCOPE_ROUTES["fraud"]
         d.escalate = True
         d.escalation_reasons.append("fraud signal")
-        d.agent_note = "Do not draft a reply. Route to fraud team."
+        d.agent_note = ("Possible fraud: route to fraud team. Don't promise a refund or a deadline. "
+                        "If money left without the customer's consent, tell them to call their bank to block UPI "
+                        "and report it on 1930 or cybercrime.gov.in.")
         return d
 
     if dispute_type == "Out of scope":

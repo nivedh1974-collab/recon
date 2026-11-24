@@ -72,6 +72,13 @@ def score(results: list) -> dict:
             "enough": len(rows) >= MIN_FOR_JUDGEMENT,
         }
     wrong = [r for r in results if not r["correct"]]
+    fr = [r for r in results if "expected_fraud" in r]
+    fraud = {
+        "fraud_complaints": sum(r["expected_fraud"] for r in fr),
+        "caught": sum(r["expected_fraud"] and r["fraud_signal"] for r in fr),
+        "false_alarms": sum((not r["expected_fraud"]) and r["fraud_signal"] for r in fr),
+        "others": sum(not r["expected_fraud"] for r in fr),
+    }
     return {
         "n": len(results),
         "accuracy": round(sum(r["correct"] for r in results) / len(results), 3) if results else None,
@@ -80,6 +87,7 @@ def score(results: list) -> dict:
         "confusion": {e: dict(c) for e, c in confusion.items()},
         "wrong": len(wrong),
         "wrong_caught_by_confidence": sum(1 for r in wrong if r["confidence"] < 0.8),
+        "fraud_flag": fraud,
     }
 
 
@@ -104,6 +112,10 @@ def report_md(s: dict, split: str, model: str) -> str:
         row = s["confusion"].get(e, {})
         lines.append(f"| {e} | " + " | ".join(str(row.get(p, 0)) for p in LABELS) + " |")
     lines += ["", f"Wrong labels with confidence below 0.8: {s['wrong_caught_by_confidence']} of {s['wrong']}."]
+    f = s.get("fraud_flag") or {}
+    if f.get("fraud_complaints") or f.get("others"):
+        lines += ["", f"Possible-fraud flag: caught {f['caught']} of {f['fraud_complaints']} fraud complaints; "
+                      f"false alarms on {f['false_alarms']} of {f['others']} others."]
     return "\n".join(lines) + "\n"
 
 
@@ -135,6 +147,8 @@ def main() -> None:
             "id": row["ID"], "split": split_of(row), "language": language_of(row), "expected": want,
             "predicted": got["dispute_type"], "correct": ok, "confidence": got["confidence"],
             "fraud_signal": got["fraud_signal"], "reason": got["reason"],
+            "expected_fraud": "fraud" in row["Expected type"].lower(),
+            "fraud_signals": "; ".join(got.get("fraud_signals", [])),
             "overrides": "; ".join(got.get("overrides", [])),
         })
         print(f"{row['ID']}  {'OK ' if ok else 'MISS'}  want={want:<14} got={got['dispute_type']:<14} conf={got['confidence']:.2f}")

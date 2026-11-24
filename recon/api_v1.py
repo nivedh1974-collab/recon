@@ -212,15 +212,18 @@ def create_escalation(body: EscalationIn, idempotency_key: Optional[str] = Heade
         if same:  # retry of a request that already went through: same answer, no new escalation
             return JSONResponse(status_code=200, content=_esc_out(same))
         t = _load_txn(conn, body.txn_id)
+        if body.case_id:
+            try:
+                case = case_store.get_case(conn, body.case_id)
+            except case_store.CaseError as e:
+                raise ApiError(e.status, e.code, e.message)
+            if case["possible_fraud"]:
+                raise ApiError(409, "FRAUD_HOLD", "Possible fraud: route to the fraud team, not the payment service "
+                                                  "provider bank. Clear the flag with a note if it is not fraud.")
         open_one = conn.execute("SELECT escalation_id FROM escalations WHERE txn_id = ? AND status = 'SUBMITTED'",
                                 (body.txn_id,)).fetchone()
         if open_one:
             raise ApiError(409, "ALREADY_ESCALATED", f"{body.txn_id} already has escalation {open_one[0]}")
-        if body.case_id:
-            try:
-                case_store.get_case(conn, body.case_id)
-            except case_store.CaseError as e:
-                raise ApiError(e.status, e.code, e.message)
         _mock_fail(x_mock_fail, "PSP", "escalation")
         esc_id = "ESC-" + uuid.uuid4().hex[:8].upper()
         conn.execute(

@@ -41,6 +41,20 @@ def needs_review_reasons(lookup, ref: Optional[str], c: dict) -> list:
     return reasons
 
 
+def possible_fraud(c: dict) -> dict:
+    """PRD: Possible fraud. Model flag or any code signal is enough to hold the money path."""
+    signals = list(c.get("fraud_signals") or [])
+    if c.get("model_fraud_flag"):
+        signals = ["model flagged fraud"] + signals
+    return {"flagged": bool(c.get("fraud_signal")), "signals": signals}
+
+
+def headline(c: dict, final_type: str) -> str:
+    if c.get("fraud_signal"):
+        return "Possible fraud: route to fraud team"
+    return final_type
+
+
 def open_case(conn, complaint_text: str, txn_id: Optional[str] = None, utr: Optional[str] = None,
               mock_fail: Optional[str] = None, call=None, sleep=time.sleep) -> dict:
     lookup, txn = None, None
@@ -72,8 +86,11 @@ def open_case(conn, complaint_text: str, txn_id: Optional[str] = None, utr: Opti
         "needs_review_reasons": reasons,
         "model_guess": c["dispute_type"],
         "confidence": c["confidence"],
-        "classification": {k: c.get(k) for k in ("fraud_signal", "fraud_words", "out_of_scope_reason", "reason",
-                                                 "overrides", "failure", "amount_inr", "app")},
+        "classification": {k: c.get(k) for k in ("fraud_signal", "fraud_words", "fraud_signals", "model_fraud_flag",
+                                                 "out_of_scope_reason", "reason", "overrides", "failure",
+                                                 "amount_inr", "app")},
+        "possible_fraud": possible_fraud(c),
+        "headline": headline(c, final_type),
         "status_lookup": None if lookup is None else
             {"attempts": lookup.attempts, "outcome": lookup.outcome, "notes": lookup.notes},
         "txn_id": txn["txn_id"] if txn else None,

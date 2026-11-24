@@ -13,7 +13,7 @@ from typing import Optional
 
 from recon import classifier
 
-AGENT_EVENTS = ("opened", "dispute_type_changed", "reply_sent", "closed")
+AGENT_EVENTS = ("opened", "dispute_type_changed", "reply_sent", "closed", "fraud_routed", "fraud_cleared")
 STATUS_AFTER = {"reply_sent": "SENT", "closed": "CLOSED", "escalated": "ESCALATED"}
 
 
@@ -47,6 +47,8 @@ def save_new_case(conn, result: dict, complaint_text: str, txn_id: Optional[str]
         "model": {"name": model, "prompt_version": classifier.prompt_version(),
                   "guess": result["model_guess"], "confidence": result["confidence"], **result["classification"]},
         "needs_review_reasons": result["needs_review_reasons"],
+        "possible_fraud": result.get("possible_fraud"),
+        "headline": result.get("headline"),
         "dispute_type": result["dispute_type"],
         "decision": d,
         "draft": result["draft"],
@@ -72,6 +74,8 @@ def save_new_case(conn, result: dict, complaint_text: str, txn_id: Optional[str]
         log(conn, case_id, "recon", "status_checked", None, f"{s['outcome']} after {s['attempts']} attempt(s)", now)
     log(conn, case_id, "recon", "classified", result["model_guess"],
         f"{result['dispute_type']} ({result['confidence']:.2f})", now)
+    if (result.get("possible_fraud") or {}).get("flagged"):
+        log(conn, case_id, "recon", "possible_fraud", None, ", ".join(result["possible_fraud"]["signals"]), now)
     if result["needs_review_reasons"]:
         log(conn, case_id, "recon", "needs_review", None, "; ".join(result["needs_review_reasons"]), now)
     log(conn, case_id, "recon", "rules_applied", None,
@@ -109,6 +113,7 @@ def get_case(conn, case_id: str) -> dict:
         "sent_reply": c["sent_reply"],
         "closed_at": c["closed_at"],
         "case_source": c["case_source"],
+        "possible_fraud": bool(c["fraud_signal"]),
         "record_at_open": record,
         "history": history(conn, case_id),
     }
@@ -139,11 +144,56 @@ def agent_event(conn, case_id: str, agent_id: str, event: str, value: Optional[s
         conn.execute("UPDATE cases SET sent_reply = ?, case_status = 'SENT', agent_id = COALESCE(agent_id, ?) "
                      "WHERE case_id = ?", (value, agent_id, case_id))
         log(conn, case_id, agent_id, "reply_sent", c["draft_reply"], value)
+    elif event in ("fraud_routed", "fraud_cleared"):
+        if not c["fraud_signal"]:
+            raise CaseError(409, "NOT_FLAGGED", f"{case_id} has no possible-fraud flag")
+        if event == "fraud_routed":
+            conn.execute("UPDATE cases SET case_status = 'ESCALATED', agent_id = COALESCE(agent_id, ?) "
+                         "WHERE case_id = ?", (agent_id, case_id))
+            log(conn, case_id, agent_id, "routed_to_fraud_team", None, note or None)
+        else:
+            if not note:
+                raise CaseError(400, "NOTE_REQUIRED", "Clearing a possible-fraud flag needs a note saying why")
+            _clear_fraud(conn, c, agent_id, note)
     elif event == "closed":
         conn.execute("UPDATE cases SET case_status = 'CLOSED', closed_at = ? WHERE case_id = ?", (_now(), case_id))
         log(conn, case_id, agent_id, "case_closed", c["case_status"], note or None)
     conn.commit()
     return get_case(conn, case_id)
+
+
+def _clear_fraud(conn, c: dict, agent_id: str, note: str) -> None:
+    """Agent says it is not fraud: re-run the rules and the draft without the flag."""
+    from recon import drafter
+    from recon.case_flow import _jsonable
+    from recon.payment_system import _row
+    from recon.rules_engine import decide
+    from dataclasses import asdict
+
+    record = json.loads(c["case_record"]) if c.get("case_record") else {}
+    txn_id = conn.execute("SELECT txn_id FROM complaints WHERE complaint_id = ?", (c["complaint_id"],)).fetchone()[0]
+    txn = _row(conn, txn_id, None) if txn_id else None
+    model = record.get("model", {})
+    oos = model.get("out_of_scope_reason")
+    dtype = c["dispute_type"]
+    if dtype == "Out of scope" and oos == "fraud":
+        dtype, oos = "Needs review", None
+    rules = {r["rule_id"]: dict(r) for r in conn.execute("SELECT * FROM rules")}
+    d = _jsonable(asdict(decide(dtype, txn, rules, confidence=c["confidence"] or 0.0, fraud_signal=False,
+                                out_of_scope_reason=oos, amount_inr=model.get("amount_inr"))))
+    case_in = drafter.build_case({"dispute_type": dtype, "fraud_signal": False, "amount_inr": model.get("amount_inr"),
+                                  "utr": record.get("complaint", {}).get("utr")}, d, txn)
+    draft = drafter.draft(case_in)
+    conn.execute(
+        """UPDATE cases SET fraud_signal = 0, dispute_type = ?, rule_id = ?, deadline_date = ?, days_past_deadline = ?,
+           compensation_inr = ?, escalate = ?, escalation_reasons = ?, draft_reply = ? WHERE case_id = ?""",
+        (dtype, d["rule_id"], d["deadline_date"], d["days_past_deadline"], d["compensation_inr"], int(d["escalate"]),
+         "; ".join(d["escalation_reasons"]), draft["draft"], c["case_id"]))
+    log(conn, c["case_id"], agent_id, "fraud_cleared", "possible fraud", f"{dtype} | note: {note}")
+    log(conn, c["case_id"], "recon", "rules_applied", None,
+        f"rule {d['rule_id'] or '-'}, deadline {d['deadline_date'] or '-'}, compensation Rs {d['compensation_inr']}, "
+        f"escalate {'yes' if d['escalate'] else 'no'}")
+    log(conn, c["case_id"], "recon", "draft_created", None, draft["template_id"])
 
 
 def log_escalation(conn, case_id: str, agent_id: str, escalation_id: str, reasons: list) -> None:

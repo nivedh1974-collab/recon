@@ -25,10 +25,29 @@ DISPUTE_TYPES = ["P2P failed", "P2M failed", "Wrong UPI ID", "Out of scope", "Ne
 OUT_OF_SCOPE = ["AutoPay", "fraud", "double payment", "merchant display issue", "cards", "wallet"]
 
 # Code-level fraud guard. Runs even if the model misses it.
-FRAUD_PATTERNS = [
-    r"\botp\b", r"\bupi pin\b", r"\bpin\b.*(ask|share|call)", r"(didn'?t|did not|never) (make|authori[sz]e)",
-    r"\bscam", r"\bfraud", r"\bhack", r"unknown (call|caller|number)", r"\bstranger\b", r"remote access",
-]
+# Possible-fraud signals (PRD: Possible fraud). Built from known UPI fraud types, not from the
+# holdout. Plain "fraud" is NOT a signal: angry customers call the app a fraud all the time.
+FRAUD_SIGNALS = {
+    "unauthorised debit": [
+        r"(didn'?t|did not|never|not) (make|do|initiate|authori[sz]e)[a-z]* (this |the |that |any |these )?"
+        r"(payment|transaction|transfer|debit)",
+        r"without my (knowledge|permission|consent|approval)", r"\bunauthori[sz]ed\b"],
+    "OTP or PIN shared": [r"\botp\b", r"\b(upi )?pin\b.{0,40}\b(share|shared|asked|gave|told)\b",
+                          r"\b(share|shared|asked|gave|told)\b.{0,40}\bupi pin\b"],
+    "remote access app": [r"anydesk|teamviewer|quick ?support|screen ?shar|remote access"],
+    "fake customer care": [r"customer care (number )?(from|on) google",
+                           r"fake (customer care|call|link|app|website|number|agent)"],
+    "collect or QR trick": [r"(scan|scanned)\b.{0,30}\breceive", r"collect request"],
+    "scam words": [r"\bscam", r"\bcheat(ed|ing)?\b", r"\bfraudster", r"\bfraudulent\b", r"\bhack(ed|er|ing)?\b",
+                   r"\bfraud (call|caller|link|message|sms|happened|attempt|case|person|with me)",
+                   r"(victim of|been|got) (a )?fraud", r"\bdefraud", r"\bthag", r"dhokha",
+                   r"fraud (hua|ho gaya|kiya)", r"(unknown|strange) caller"],
+    "job, task or investment scam": [r"part[- ]time job", r"task (job|based)", r"\btelegram\b",
+                                     r"investment (app|scheme|plan)", r"double (your|the) money", r"\blottery\b",
+                                     r"prize money"],
+    "crypto deal": [r"\bcrypto\b", r"\busdt\b", r"\bbitcoin\b"],
+}
+FRAUD_PATTERNS = [p for pats in FRAUD_SIGNALS.values() for p in pats]
 
 SYSTEM_PROMPT = """You classify UPI payment complaints for a support agent at a UPI app in India.
 Complaints may be in English, Hindi or Hinglish. Return ONLY a JSON object, no prose.
@@ -113,8 +132,9 @@ FEW_SHOT = [
 
 
 def fraud_guard(text: str) -> list:
+    """Names of the fraud signals found in the text, e.g. ["OTP or PIN shared"]."""
     lowered = text.lower()
-    return [p for p in FRAUD_PATTERNS if re.search(p, lowered)]
+    return [name for name, pats in FRAUD_SIGNALS.items() if any(re.search(p, lowered) for p in pats)]
 
 
 def _messages(complaint: str) -> list:
@@ -262,8 +282,10 @@ def classify(complaint: str, runs: int = 1, call=None, txn: Optional[dict] = Non
     if not result["reason"].startswith("classifier error"):
         apply_overrides(result, complaint, txn)
 
+    result["model_fraud_flag"] = bool(result["fraud_signal"])
     guard_hits = fraud_guard(complaint)
     if guard_hits and not result["fraud_signal"]:
         result["fraud_signal"] = True
         result["fraud_words"] = result["fraud_words"] + ["(code guard)"]
+    result["fraud_signals"] = guard_hits
     return result
