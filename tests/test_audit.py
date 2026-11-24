@@ -100,3 +100,17 @@ def test_unknown_case_404_and_history_page_renders():
     cid = _open()["case_id"]
     page = client.get(f"/cases/{cid}")
     assert page.status_code == 200 and "append-only" in page.text and "rules_applied" in page.text
+
+
+def test_queue_order_fraud_then_late_then_needs_review():
+    with connect() as conn:
+        conn.execute("DELETE FROM cases WHERE case_source='live' AND case_id NOT IN (SELECT case_id FROM audit_log)")
+    normal = _open()["case_id"]
+    nr = client.post("/v1/cases", json={"complaint_text": "paid 500 to shop", "txn_id": _txn_id()},
+                     headers={"X-Mock-Fail": "timeout"}).json()["case_id"]
+    fraud = client.post("/v1/cases", json={"complaint_text": "I shared the OTP with a caller"}).json()["case_id"]
+    q = [c["case_id"] for c in client.get("/v1/cases").json()]
+    # fraud first; the normal case is past its T+1 deadline, so it ranks above Needs review
+    assert q.index(fraud) < q.index(normal) < q.index(nr)
+    case = client.get(f"/v1/cases/{normal}").json()
+    assert case["record_at_open"]["transaction"]["txn_id"] == _txn_id()

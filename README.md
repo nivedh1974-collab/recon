@@ -12,6 +12,7 @@ Independent portfolio build. Transaction data is simulated; the test set is 61 r
 - [x] Failure handling: one status retry, then Needs review with the reason shown
 - [x] Audit log: full case record at open, append-only history, case history page at /cases/{id}
 - [x] Possible-fraud flag: route to fraud team, money path held, agent confirms or clears
+- [x] Agent screens (Streamlit): queue, case view with actions, case history
 - [x] Dispute classifier (model)
 - [ ] Reply drafter (model)
 - [x] Rules engine and escalation (code)
@@ -62,6 +63,7 @@ recon/drafter.py      template reply drafter (never sends)
 recon/case_flow.py    opens a case end to end, applies failure rules
 recon/payment_system.py  mock payment system client, one retry
 recon/case_store.py   case record + append-only audit log
+recon/ui.py           agent screens (streamlit run recon/ui.py)
 recon/rules_engine.py RBI deadline, compensation and escalation (no model)
 recon/classifier.py   reads the complaint, returns dispute type + fields (model)
 recon/evaluate.py     scores the classifier on the 61 real complaints
@@ -69,3 +71,15 @@ recon/metrics.py      ops metrics computed from cases + audit_log
 recon/simulate.py     simulated agent sessions (clearly labelled) for the dashboard
 tests/                API tests
 ```
+
+## Agent screens
+
+```
+pip install -r requirements.txt
+streamlit run recon/ui.py
+```
+
+Opens in the browser. The API runs in-process, so one command is enough. To use a running API
+instead: `RECON_API=http://127.0.0.1:8000 streamlit run recon/ui.py`.
+No Groq key? `RECON_DEMO_MODEL=1 streamlit run recon/ui.py` uses a keyword stand-in, clearly
+labelled, so the screens can be shown without the real model.

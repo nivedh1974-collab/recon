@@ -40,10 +40,12 @@ def save_new_case(conn, result: dict, complaint_text: str, txn_id: Optional[str]
     suffix = uuid.uuid4().hex[:8].upper()
     complaint_id, case_id = f"CMP-{suffix}", f"CASE-{suffix}"
     d = result["decision"]
-    model = os.environ.get("GROQ_MODEL", classifier.DEFAULT_MODEL)
+    # A stand-in model (tests, demo mode) names itself, so the record never claims the real model ran.
+    model = getattr(classifier._call_model, "model_name", None) or os.environ.get("GROQ_MODEL", classifier.DEFAULT_MODEL)
     record = {
         "complaint": {"text": complaint_text, "channel": channel, "txn_id": txn_id, "utr": utr},
         "status_lookup": result["status_lookup"],
+        "transaction": result.get("transaction"),
         "model": {"name": model, "prompt_version": classifier.prompt_version(),
                   "guess": result["model_guess"], "confidence": result["confidence"], **result["classification"]},
         "needs_review_reasons": result["needs_review_reasons"],
@@ -89,6 +91,41 @@ def save_new_case(conn, result: dict, complaint_text: str, txn_id: Optional[str]
     return case_id
 
 
+def list_cases(conn, status: Optional[str] = None, include_simulated: bool = False, limit: int = 200) -> list:
+    """Queue order (PRD US-28): possible fraud, past deadline, Needs review, then newest."""
+    sql = "SELECT c.*, p.text AS complaint_text FROM cases c JOIN complaints p ON p.complaint_id = c.complaint_id"
+    where, args = [], []
+    if status:
+        where.append("c.case_status = ?")
+        args.append(status)
+    if not include_simulated:
+        where.append("c.case_source = 'live'")
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    out = []
+    for r in conn.execute(sql, args):
+        r = dict(r)
+        rec = json.loads(r["case_record"]) if r.get("case_record") else {}
+        fraud = bool(r["fraud_signal"])
+        needs_review = r["dispute_type"] == "Needs review"
+        late = (r["days_past_deadline"] or 0) > 0
+        out.append({
+            "case_id": r["case_id"], "created_at": r["created_at"], "case_status": r["case_status"],
+            "headline": "Possible fraud: route to fraud team" if fraud else r["dispute_type"],
+            "dispute_type": r["dispute_type"], "possible_fraud": fraud, "needs_review": needs_review,
+            "deadline_date": r["deadline_date"], "days_past_deadline": r["days_past_deadline"],
+            "compensation_inr": r["compensation_inr"], "escalate": bool(r["escalate"]), "agent_id": r["agent_id"],
+            "amount_inr": (rec.get("transaction") or {}).get("amount_inr") or (rec.get("model") or {}).get("amount_inr"),
+            "complaint": (r["complaint_text"] or "")[:140],
+            "_rank": 0 if fraud else 1 if late else 2 if needs_review else 3,
+        })
+    out.sort(key=lambda x: x["created_at"] or "", reverse=True)
+    out.sort(key=lambda x: x["_rank"])
+    for x in out:
+        x.pop("_rank")
+    return out[:limit]
+
+
 def _case_row(conn, case_id: str) -> dict:
     row = conn.execute("SELECT * FROM cases WHERE case_id = ?", (case_id,)).fetchone()
     if row is None:
@@ -111,6 +148,9 @@ def get_case(conn, case_id: str) -> dict:
         "dispute_type": c["dispute_type"],
         "agent_id": c["agent_id"],
         "sent_reply": c["sent_reply"],
+        "current": {k: c[k] for k in ("rule_id", "deadline_date", "days_past_deadline", "compensation_inr",
+                                      "escalation_reasons", "draft_reply", "confidence")}
+                   | {"escalate": bool(c["escalate"])},
         "closed_at": c["closed_at"],
         "case_source": c["case_source"],
         "possible_fraud": bool(c["fraud_signal"]),

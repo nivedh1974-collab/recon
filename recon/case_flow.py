@@ -94,6 +94,9 @@ def open_case(conn, complaint_text: str, txn_id: Optional[str] = None, utr: Opti
         "status_lookup": None if lookup is None else
             {"attempts": lookup.attempts, "outcome": lookup.outcome, "notes": lookup.notes},
         "txn_id": txn["txn_id"] if txn else None,
+        "transaction": None if not txn else {k: txn.get(k) for k in (
+            "txn_id", "utr", "txn_type", "app", "amount_inr", "status", "debited", "credited", "error_code",
+            "reversal_status", "reversed_at", "funding_source", "created_at", "payee_name")},
         "decision": decision,
         "draft": draft,
         "draft_blocked": draft_blocked,

@@ -266,6 +266,12 @@ class CaseEventIn(BaseModel):
     note: Optional[str] = None
 
 
+@router.get("/cases")
+def list_cases(status: Optional[str] = None, include_simulated: bool = False, limit: int = 200) -> list:
+    with _conn() as conn:
+        return case_store.list_cases(conn, status, include_simulated, limit)
+
+
 @router.get("/cases/{case_id}")
 def get_case(case_id: str) -> dict:
     with _conn() as conn:
