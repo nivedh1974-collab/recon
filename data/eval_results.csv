@@ -1,107 +1,34 @@
-id,split,language,expected,predicted,correct,confidence,fraud_signal,reason
-C066,holdout,en,Out of scope,Out of scope,True,0.96,False,UPI wallet top‑up debited but not credited to PhonePe wallet.
-C067,holdout,en,P2P failed,P2P failed,True,0.97,False,Payment debited but receiver shows failed.
-C068,holdout,en,P2P failed,P2P failed,True,0.96,False,"Paid a person via UPI, debited but not received."
-C069,holdout,en,P2P failed,P2P failed,True,0.97,False,"Failed payment through PhonePe, amount debited but beneficiary not received."
-C070,holdout,en,P2P failed,P2P failed,True,0.96,False,Debited but recipient's SBI account not credited.
-C071,holdout,en,P2P failed,P2P failed,True,0.97,False,"Paid a person, amount debited but not received."
-C072,holdout,en,P2M failed,P2M failed,True,0.96,False,Payment to insurer failed and refund not received.
-C073,holdout,en,Out of scope,Out of scope,True,0.93,False,Card payment through PhonePe not covered by UPI dispute categories.
-C074,holdout,en,Out of scope,P2M failed,False,0.96,False,Merchant payment (rental service) debited but not received.
-C075,holdout,en,P2M failed,P2M failed,True,0.96,False,"Merchant payments debited but not received, marked failed."
-C076,holdout,en,P2P failed,P2P failed,True,0.96,False,Debited but recipient did not receive the payment.
-C077,holdout,en,Needs review,Needs review,True,0.3,False,Insufficient details about payment.
-C078,holdout,en,Needs review,Needs review,True,0.3,False,Vague complaint about pending money without details.
-C079,holdout,en,Needs review,Needs review,True,0.3,False,Insufficient information about the transaction.
-C080,holdout,en,Out of scope,P2M failed,False,0.9,False,Merchant hasn't refunded after order cancellation.
-C081,holdout,hinglish,Out of scope,Needs review,False,0.3,False,Insufficient details about the payment issue.
-C082,holdout,en,Needs review,Needs review,True,0.3,False,"User complains about service delay, no transaction details provided."
-C083,holdout,hinglish,Out of scope,Out of scope,True,0.96,True,Customer was charged twice for the same transaction.
-C084,holdout,en,Needs review,P2P failed,False,0.6,False,User indicates a payment was made but the recipient did not receive it.
-C085,holdout,en,Needs review,Needs review,True,0.35,False,User reports amount not credited but provides no details.
-C086,holdout,hinglish,Needs review,Needs review,True,0.3,False,Insufficient details about the transaction or issue.
-C087,holdout,hinglish,Needs review,Needs review,True,0.3,False,Insufficient details about the transaction.
-C088,holdout,hi,Out of scope,Out of scope,True,0.9,False,User complains about automatic money deductions (AutoPay).
-C089,holdout,en,Out of scope,Out of scope,True,0.9,True,"User reports a hack and loss of funds, indicating fraud."
-C090,holdout,en,Out of scope,Out of scope,True,0.96,False,"User wants to cancel AutoPay mandates, which is out of scope."
-C091,holdout,hinglish,Needs review,P2P failed,False,0.6,False,Money debited but no transaction record visible.
-C092,holdout,en,Needs review,Needs review,True,0.4,False,"User reports not receiving an incoming payment, insufficient details."
-C093,holdout,en,Needs review,Needs review,True,0.3,False,Insufficient information to determine payment type.
-C094,holdout,en,Out of scope,Needs review,False,0.35,False,Insufficient details to determine the issue.
-C095,holdout,en,Needs review,P2M failed,False,0.6,False,"Payment through Google Pay to a merchant (Google Play) failed, details unclear."
-C096,holdout,en,Out of scope,P2P failed,False,0.94,False,P2P payment debited but not received after hold period.
-C097,holdout,en,Out of scope,Needs review,False,0.4,True,User reports transactions being cancelled without payment details.
-C098,holdout,en,Out of scope,Out of scope,True,0.85,True,Customer reports unauthorized deduction/fee.
-C099,holdout,hinglish,Needs review,Needs review,True,0.3,False,Vague complaint without details of payment or issue.
-C100,holdout,hinglish,Needs review,Needs review,True,0.3,False,Vague complaint without details of transaction.
-C101,holdout,hinglish,Needs review,Needs review,True,0.3,False,Vague complaint without details of payee or transaction.
-C102,holdout,hinglish,Out of scope,Needs review,False,0.3,False,User reports theft but provides no details about transaction.
-C103,holdout,hinglish,Needs review,Needs review,True,0.35,False,"User reports a payment not arriving but provides no details about payer, amount, or app."
-C104,holdout,en,Needs review,Needs review,True,0.3,False,Insufficient details to determine payment type or context.
-C105,holdout,en,Out of scope,Out of scope,True,0.96,False,"AutoPay was cancelled but money was still debited, which is out of scope."
-C106,holdout,en,Out of scope,Out of scope,True,0.96,False,"User reports an auto‑pay charge for Google Play, which is out of scope."
-C107,holdout,en,Wrong UPI ID,Wrong UPI ID,True,0.96,False,Paid wrong UPI ID due to typing error.
-C108,holdout,en,Wrong UPI ID,Out of scope,False,0.96,False,App fails to delete old billers and recharge was made to an unused number.
-C109,holdout,en,P2P failed,P2P failed,True,0.9,False,"Payment stuck in PhonePe, debited but not received."
-C110,holdout,en,P2P failed,P2P failed,True,0.96,True,Payment to mother (individual) stuck processing after debit.
-C111,holdout,en,P2P failed,P2P failed,True,0.96,False,"Debited payment stuck pending, recipient not received."
-C112,holdout,en,P2P failed,P2P failed,True,0.96,False,"Paid sister, money debited but not received."
-C113,holdout,en,P2M failed,P2M failed,True,0.97,False,Recharge payments deducted but not credited.
-C114,holdout,en,P2M failed,P2M failed,True,0.96,False,Recharge to Jio failed after amount was deducted.
-C115,holdout,en,Out of scope,P2M failed,False,0.85,False,"Multiple merchant payments got stuck/pending then later deducted, causing cash payment."
-C116,holdout,en,Out of scope,Out of scope,True,0.97,False,User unable to cancel AutoPay mandate and wants refund.
-C117,holdout,en,Out of scope,Out of scope,True,0.96,False,"AutoPay debit issue, out of scope."
-C118,holdout,en,Out of scope,P2M failed,False,0.96,False,Top‑up to PhonePe failed after debit.
-C119,holdout,en,Out of scope,Out of scope,True,0.92,False,"Top‑up to PhonePe wallet debited but not credited, which is out of scope."
-C120,holdout,en,Needs review,Needs review,True,0.4,False,User reports generic technical issue without specific transaction details.
-C121,holdout,en,Out of scope,Out of scope,True,0.94,True,User reports a fraudulent transaction and poor support response.
-C122,holdout,en,Out of scope,Out of scope,True,0.96,True,User reports unauthorized payment and claims fraud.
-C123,holdout,en,Out of scope,Out of scope,True,0.96,False,"Credit card top‑up not received, falls under cards out‑of‑scope category."
-C124,holdout,en,Needs review,Needs review,True,0.35,False,User reports generic payment hangs without specific transaction details.
-C125,holdout,en,Needs review,Needs review,True,0.4,False,User reports generic pending payments without specific transaction details.
-C126,holdout,en,Needs review,Out of scope,False,0.85,True,Refund shown as successful in app but not credited to bank account.
-C127,holdout,en,Needs review,P2M failed,False,0.94,True,"Payment to Amazon (merchant) deducted incorrect amount, indicating a merchant‑side issue."
-C128,holdout,en,Needs review,P2P failed,False,0.68,False,Incoming peer-to-peer payments shown in app but not reflected in bank account.
-C129,holdout,en,Needs review,Needs review,True,0.35,False,"Transaction held for 24 hours, but no details on amount or payee."
-C130,holdout,en,Needs review,P2P failed,False,0.8,False,Payment deducted but beneficiary not credited within expected timeline.
-C131,holdout,en,P2P failed,P2P failed,True,0.96,False,"Bank-to-bank UPI transfer debited but not credited, repeated failure."
-C132,holdout,en,P2P failed,P2P failed,True,0.85,False,Pending transaction debited but recipient not received.
-C133,holdout,en,Needs review,P2P failed,False,0.7,False,Money debited from bank but not received; no specific payee mentioned.
-C134,holdout,en,P2M failed,P2M failed,True,0.96,False,Recharge payment succeeded but service not activated.
-C135,holdout,en,P2M failed,P2M failed,True,0.93,False,Recharge pending with money deducted and not received.
-C136,holdout,en,P2M failed,P2M failed,True,0.94,False,Phone recharge via Paytm debited but not completed.
-C137,holdout,en,P2M failed,P2M failed,True,0.96,False,Recharge payment succeeded but service not delivered.
-C138,holdout,en,P2M failed,P2M failed,True,0.94,False,Recharge payment debited but not completed.
-C139,holdout,en,P2M failed,P2M failed,True,0.93,False,"Paid merchant for flight ticket, amount deducted but service not delivered."
-C140,holdout,en,P2M failed,P2M failed,True,0.96,False,Payment to flight merchant deducted but booking not completed.
-C141,holdout,en,P2M failed,P2M failed,True,0.9,False,Payment to train ticket merchant debited but booking failed.
-C142,holdout,en,P2M failed,P2M failed,True,0.93,False,Payment deducted for a booking but merchant hasn't confirmed or delivered the service.
-C143,holdout,en,P2M failed,P2M failed,True,0.96,True,Merchant payment failed after money was debited.
-C144,holdout,en,Needs review,P2M failed,False,0.85,False,"Pending merchant payment that was later deducted, causing confusion about double payment."
-C145,holdout,en,Out of scope,P2M failed,False,0.9,True,Refund from bus ticket merchant pending after cancellation.
-C146,holdout,en,Out of scope,Out of scope,True,0.9,False,Customer was charged twice for the same postpaid bill.
-C147,holdout,en,Wrong UPI ID,Wrong UPI ID,True,0.97,False,Paid to wrong UPI ID and seeks assistance.
-C148,holdout,en,Wrong UPI ID,Wrong UPI ID,True,0.96,False,Paid to an incorrect UPI ID by mistake.
-C149,holdout,en,Wrong UPI ID,Wrong UPI ID,True,0.97,False,"Sent money to wrong UPI ID in two transactions totaling Rs 28,800."
-C150,holdout,en,Wrong UPI ID,Wrong UPI ID,True,0.97,False,Sent money to an incorrect UPI ID.
-C151,holdout,en,Wrong UPI ID,Wrong UPI ID,True,0.96,False,Customer claims payment was sent to a wrong UPI ID.
-C152,holdout,en,Wrong UPI ID,Wrong UPI ID,True,0.96,False,Sent money to an incorrect UPI ID and seeks reversal.
-C153,holdout,en,Wrong UPI ID,Wrong UPI ID,True,0.96,False,Sent money to wrong UPI ID by mistake.
-C154,holdout,en,Wrong UPI ID,Wrong UPI ID,True,0.96,False,Paid the wrong person by mistake.
-C155,holdout,en,Wrong UPI ID,Wrong UPI ID,True,0.96,False,Entered wrong UPI ID and transaction completed.
-C156,holdout,en,Wrong UPI ID,Wrong UPI ID,True,0.96,False,Transfer made to an incorrect UPI ID.
-C157,holdout,en,Wrong UPI ID,Wrong UPI ID,True,0.97,False,Sent money to an incorrect UPI ID.
-C158,holdout,en,Needs review,Wrong UPI ID,False,0.96,False,"Mobikwik fetched an incorrect UPI ID, causing payment to be misrouted."
-C159,holdout,en,Wrong UPI ID,Wrong UPI ID,True,0.96,False,Paid wrong mobile number by mistake.
-C160,holdout,hinglish,Wrong UPI ID,Wrong UPI ID,True,0.96,False,Paid to an incorrect UPI address and seeks refund.
-C161,holdout,en,Wrong UPI ID,Wrong UPI ID,True,0.7,False,Customer says they made wrong transactions and wants the money back.
-C162,holdout,en,Wrong UPI ID,Wrong UPI ID,True,0.96,False,Sent money to the wrong person by mistake.
-C163,holdout,en,Wrong UPI ID,P2P failed,False,0.85,False,"Debited via Paytm to a phone number, recipient did not receive the money."
-C164,holdout,en,P2P failed,P2P failed,True,0.9,False,Debited via BHIM UPI but beneficiary hasn't received the money after 3 days.
-C165,holdout,en,P2P failed,P2P failed,True,0.92,False,Money deducted via UPI app but recipient hasn't received it.
-C166,holdout,en,P2M failed,P2M failed,True,0.96,False,Bill payment to electricity company failed after debit.
-C167,holdout,en,P2M failed,P2M failed,True,0.96,False,Bill payment deducted but biller not updated.
-C168,holdout,en,P2M failed,P2M failed,True,0.96,False,Payment to merchant debited but not received.
-C169,holdout,en,P2M failed,P2M failed,True,0.9,False,Fee payment to a merchant/school failed after money was debited.
-C170,holdout,hinglish,Out of scope,Out of scope,True,0.96,True,Customer reports being scammed via a part‑time job SMS.
-C171,holdout,hinglish,Out of scope,Needs review,False,0.4,True,Message does not describe a UPI payment issue.
+id,split,language,expected,predicted,correct,confidence,fraud_signal,reason,expected_fraud,fraud_signals,overrides
+C172,holdout2,en,Out of scope,Out of scope,True,0.96,True,Customer was scammed via a fraudulent call and unauthorized app access.,True,OTP or PIN shared; remote access app,
+C173,holdout2,en,Out of scope,Out of scope,True,0.96,True,Unauthorized fraudulent UPI transaction.,True,OTP or PIN shared,
+C174,holdout2,en,Out of scope,Out of scope,True,0.96,True,Payment made for a job scam; funds sent to fraudulent UPI/bank accounts.,True,"job, task or investment scam",
+C175,holdout2,hinglish,Out of scope,Out of scope,True,0.96,True,User fell for a job scam and transferred money to fraudsters.,True,"job, task or investment scam",
+C176,holdout2,en,Out of scope,Out of scope,True,0.96,True,"Paid into a fraudulent earning program, funds frozen and cannot withdraw.",True,,
+C177,holdout2,en,Out of scope,Out of scope,True,0.96,True,"Payment made to a fraudulent service provider, classified as out‑of‑scope fraud.",True,fake customer care,
+C178,holdout2,en,Out of scope,Wrong UPI ID,False,0.9,True,"Scanned a QR that belonged to the buyer, resulting in payment to the wrong person.",True,,
+C179,holdout2,en,Out of scope,Out of scope,True,0.95,True,User describes a scam involving a fake Indian army payment method.,True,,
+C180,holdout2,en,Out of scope,Out of scope,True,0.96,True,"Unauthorized payment after sharing UPI PIN, classified as fraud.",True,OTP or PIN shared,
+C181,holdout2,en,Out of scope,Out of scope,True,0.97,True,Paid a fraudulent seller for a car; payment not delivered.,True,,
+C182,holdout2,en,Out of scope,Out of scope,True,0.96,True,Customer was scammed via QR code and lost money.,True,,
+C183,holdout2,en,Out of scope,Out of scope,True,0.96,True,Customer was scammed in a private car purchase via UPI.,True,scam words,
+C184,holdout2,en,Out of scope,Out of scope,True,0.96,True,User fell victim to a scam; payment was fraudulent.,True,,
+C185,holdout2,en,Out of scope,Needs review,False,0.3,False,User describes a bike purchase inquiry without any payment details.,True,,
+C186,holdout2,en,Out of scope,Needs review,False,0.6,False,User describes a payment but does not state the problem.,True,,
+C187,holdout2,en,Out of scope,Out of scope,True,0.96,True,"User was targeted by a scam pretending to be army personnel, not a legitimate UPI payment issue.",True,,
+C188,holdout2,en,Out of scope,Needs review,False,0.3,True,"User warns about external fraud schemes, no personal payment issue described.",True,"job, task or investment scam; crypto deal",
+C189,holdout2,en,Out of scope,Out of scope,True,0.96,True,Unauthorized Paytm transaction.,True,unauthorised debit,
+C190,holdout2,en,Out of scope,Out of scope,True,0.96,True,Scam where user was tricked into paying after a fraudulent call.,True,unauthorised debit,
+C191,holdout2,en,Out of scope,Out of scope,True,0.96,True,Customer reports unauthorized auto‑debit via GPay to a UPI ID.,True,unauthorised debit,
+C192,holdout2,en,P2M failed,Out of scope,False,0.96,False,Refund pending after insurer failed to issue policy.,False,,
+C193,holdout2,en,Out of scope,Out of scope,True,0.96,False,"Credit‑card funded payment via PhonePe not received, out of scope.",False,,
+C194,holdout2,en,Out of scope,Out of scope,True,0.96,False,"Payment funded by credit card via PhonePe, which is out of scope for UPI disputes.",False,,
+C195,holdout2,en,P2P failed,P2P failed,True,0.96,False,"Paid an individual, debited but not received despite success status.",False,,
+C196,holdout2,en,P2M failed,P2M failed,True,0.96,False,"Pending payment to a shopkeeper, debited but not credited.",False,,
+C197,holdout2,en,P2M failed,P2M failed,True,0.96,False,Bill payment to APEPDCL failed after debit.,False,,
+C198,holdout2,en,Wrong UPI ID,Wrong UPI ID,True,0.98,False,Paid wrong bank account due to typo in mobile number.,False,,
+C199,holdout2,en,P2M failed,P2M failed,True,0.97,False,Electricity bill payment debited but merchant hasn't received it.,False,,
+C200,holdout2,en,P2M failed,P2M failed,True,0.96,False,Utility bill payment debited but still pending on merchant side.,False,,
+C201,holdout2,en,P2M failed,P2M failed,True,0.96,False,Electricity bill payment failed despite debit and merchant credit.,False,,
+C202,holdout2,en,P2M failed,P2M failed,True,0.96,False,Bill payment to KSEB deducted but not reflected.,False,,
+C203,holdout2,en,P2M failed,P2M failed,True,0.96,False,"Debited for pizza order but merchant did not confirm, payment failed.",False,,
+C204,holdout2,en,Out of scope,Out of scope,True,0.96,True,"Auto‑Pay mandate debit claimed as fraudulent, out of scope.",False,scam words,
