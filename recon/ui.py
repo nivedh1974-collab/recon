@@ -110,7 +110,7 @@ def queue_screen():
         "Deadline": c["deadline_date"] or "-", "Compensation": rs(c["compensation_inr"]) if c["compensation_inr"] else "-",
         "Agent": c["agent_id"] or "-", "Complaint": c["complaint"],
     } for c in cases])
-    sel = st.dataframe(df, hide_index=True, use_container_width=True, on_select="rerun",
+    sel = st.dataframe(df, hide_index=True, width="stretch", on_select="rerun",
                        selection_mode="single-row", key="queue_table")
     rows = sel.selection.rows if sel and sel.selection else []
     if rows:
@@ -233,7 +233,7 @@ def case_screen():
         st.caption("Append-only. Nothing here can be edited or deleted.")
         st.dataframe(pd.DataFrame(c["history"]).rename(columns={
             "logged_at": "When", "actor": "Who", "action": "What", "old_value": "Before", "new_value": "After"})
-            [["When", "Who", "What", "Before", "After"]], hide_index=True, use_container_width=True)
+            [["When", "Who", "What", "Before", "After"]], hide_index=True, width="stretch")
 
 
 def act(case_id, event, value=None, note=None):
