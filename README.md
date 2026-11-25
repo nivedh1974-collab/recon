@@ -84,3 +84,18 @@ Opens in the browser. The API runs in-process, so one command is enough. To use 
 instead: `RECON_API=http://127.0.0.1:8000 streamlit run recon/ui.py`.
 No Groq key? `RECON_DEMO_MODEL=1 streamlit run recon/ui.py` uses a keyword stand-in, clearly
 labelled, so the screens can be shown without the real model.
+
+## Public demo (Streamlit Community Cloud)
+
+Entry point: `streamlit_app.py`. On a fresh server the app builds the mock bank data and 4 sample
+cases by itself (made with the stand-in model, and their record says so).
+
+Secrets (app settings > Secrets), TOML:
+
+```
+RECON_PUBLIC = "1"
+GROQ_API_KEY = "gsk_..."   # optional: leave out to run the public demo on the stand-in model
+```
+
+`RECON_PUBLIC` hides the Baseline screen, shows a "mock data" notice and caps each visitor at
+10 new cases to protect the free Groq quota.

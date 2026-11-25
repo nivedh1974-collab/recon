@@ -17,6 +17,16 @@ import streamlit as st
 
 st.set_page_config(page_title="Recon", page_icon="🧾", layout="wide")
 
+# Streamlit Cloud: settings come from the app's Secrets box, not from the code.
+try:
+    for _k in ("GROQ_API_KEY", "GROQ_MODEL", "RECON_PUBLIC", "RECON_DEMO_MODEL"):
+        if _k in st.secrets and not os.environ.get(_k):
+            os.environ[_k] = str(st.secrets[_k])
+except Exception:  # no secrets file locally
+    pass
+PUBLIC = bool(os.environ.get("RECON_PUBLIC"))
+MAX_NEW_CASES = 10  # per visitor session on the public demo, to protect the free Groq quota
+
 
 def _demo_model(complaint: str, temperature: float) -> dict:
     """Stand-in for screenshots and demos without a Groq key. Not the real classifier."""
@@ -34,9 +44,41 @@ def _demo_model(complaint: str, temperature: float) -> dict:
 _demo_model.model_name = "demo stand-in (keyword match, not the real model)"
 
 
+SAMPLE_CASES = [
+    ("Sent 124 to my friend on 21 Oct, money debited but he never got it. Please help.", "TXN000061"),
+    ("Paid Rs 99 to Apollo Pharmacy on Google Pay, still pending and money gone from bank", "TXN000116"),
+    ("A caller said he was from PhonePe support and asked me to install AnyDesk. I shared the OTP and "
+     "Rs 8,000 was gone.", None),
+    ("By mistake I paid Rs 143.97 to the wrong number on 12 Oct. Please help.", "TXN000009"),
+]
+
+
+def _bootstrap():
+    """Fresh server (e.g. Streamlit Cloud): build the mock bank data and a few sample cases.
+    Sample cases are made with the stand-in model, and their record says so."""
+    from recon import classifier, seed
+    from recon.db import connect, ensure_schema
+    conn = connect()
+    ensure_schema(conn)
+    if conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]:
+        return
+    seed.main()
+    from fastapi.testclient import TestClient
+    from recon.api import app
+    real = classifier._call_model
+    classifier._call_model = _demo_model
+    try:
+        c = TestClient(app)
+        for text, txn in SAMPLE_CASES:
+            c.post("/v1/cases", json={"complaint_text": text, **({"txn_id": txn} if txn else {})})
+    finally:
+        classifier._call_model = real
+
+
 @st.cache_resource
 def _client():
-    if os.environ.get("RECON_DEMO_MODEL"):
+    _bootstrap()
+    if os.environ.get("RECON_DEMO_MODEL") or (PUBLIC and not os.environ.get("GROQ_API_KEY")):
         from recon import classifier
         classifier._call_model = _demo_model
     base = os.environ.get("RECON_API")
@@ -69,11 +111,18 @@ if "goto" in st.session_state:
     st.session_state["page"] = st.session_state.pop("goto")
 agent = st.sidebar.text_input("Your agent id", value=st.session_state.get("agent", "A01"))
 st.session_state["agent"] = agent
-page = st.sidebar.radio("Screen", ["Queue", "Case", "New case", "Baseline"], key="page")
-if not os.environ.get("GROQ_API_KEY") and not os.environ.get("RECON_DEMO_MODEL"):
+page = st.sidebar.radio("Screen", ["Queue", "Case", "New case"] + ([] if PUBLIC else ["Baseline"]), key="page")
+if PUBLIC:
+    st.sidebar.info("Public demo. Mock bank data; resets when the app restarts. Don't paste real personal "
+                    "or payment details.")
+_stand_in = os.environ.get("RECON_DEMO_MODEL") or (PUBLIC and not os.environ.get("GROQ_API_KEY"))
+if not os.environ.get("GROQ_API_KEY") and not _stand_in:
     st.sidebar.warning("GROQ_API_KEY is not set. Model calls will fail and new cases go to Needs review.")
-if os.environ.get("RECON_DEMO_MODEL"):
+if _stand_in:
     st.sidebar.info("Demo model: a fixed stand-in, not the real classifier.")
+else:
+    st.sidebar.caption("Sample cases in the queue were made with a stand-in model; their record says so. "
+                       "New cases use the real model.") if PUBLIC else None
 st.sidebar.caption("Recon never sends replies or moves money. You do, after checking.")
 
 
@@ -252,7 +301,12 @@ def new_case_screen():
     c1, c2 = st.columns(2)
     ref = c1.text_input("UTR or transaction id (optional)", placeholder="TXN000061")
     fail = c2.selectbox("Simulate status-check failure", ["none", "timeout-once", "timeout", "error"])
+    made = st.session_state.get("cases_made", 0)
+    if PUBLIC and made >= MAX_NEW_CASES:
+        st.warning(f"Demo limit: {MAX_NEW_CASES} new cases per visit. Open existing cases from the Queue.")
+        return
     if st.button("Open case", type="primary", disabled=not text.strip()):
+        st.session_state["cases_made"] = made + 1
         body = {"complaint_text": text}
         if ref.strip().upper().startswith("TXN"):
             body["txn_id"] = ref.strip().upper()
