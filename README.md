@@ -1,8 +1,19 @@
+---
+title: Recon
+emoji: 🧾
+colorFrom: red
+colorTo: gray
+sdk: docker
+app_port: 7860
+pinned: false
+short_description: AI copilot for UPI failed-payment complaints (demo)
+---
+
 # Recon
 
 A copilot for the support agent at a UPI app (PhonePe, Google Pay, Paytm). It reads a failed-payment complaint, checks the transaction status, applies RBI's refund deadlines and compensation rules, drafts a reply, and flags cases that must go to the payment service provider bank. The agent approves and sends every message. Recon never moves money.
 
-Independent portfolio build. Transaction data is simulated; the test set is 61 real complaints from r/UPI.
+Independent portfolio build. Transaction data is simulated; the test set is 200 real complaints (r/UPI, Play Store reviews, consumercomplaints.in).
 
 ## Status
 
@@ -99,3 +110,9 @@ GROQ_API_KEY = "gsk_..."   # optional: leave out to run the public demo on the s
 
 `RECON_PUBLIC` hides the Baseline screen, shows a "mock data" notice and caps each visitor at
 10 new cases to protect the free Groq quota.
+
+## Public demo (Hugging Face Spaces)
+
+The `Dockerfile` and the YAML block at the top of this README are what Spaces needs (Docker SDK, port 7860).
+In the Space settings, add a variable `RECON_PUBLIC = 1` and, optionally, a secret `GROQ_API_KEY`.
+Without the key the demo runs on the labelled stand-in model.
