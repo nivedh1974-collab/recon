@@ -1,118 +1,105 @@
----
-title: Recon
-emoji: 🧾
-colorFrom: red
-colorTo: gray
-sdk: docker
-app_port: 7860
-pinned: false
-short_description: AI copilot for UPI failed-payment complaints (demo)
----
-
 # Recon
 
-A copilot for the support agent at a UPI app (PhonePe, Google Pay, Paytm). It reads a failed-payment complaint, checks the transaction status, applies RBI's refund deadlines and compensation rules, drafts a reply, and flags cases that must go to the payment service provider bank. The agent approves and sends every message. Recon never moves money.
+An AI copilot for support agents at UPI apps (PhonePe, Google Pay, Paytm) that handles failed-payment complaints. It reads the complaint, checks the payment status, applies RBI's refund deadlines and compensation rules, flags possible fraud, and drafts a reply. The agent approves every action. Recon never moves money and never messages a customer on its own.
 
-Independent portfolio build. Transaction data is simulated; the test set is 200 real complaints (r/UPI, Play Store reviews, consumercomplaints.in).
+**[Live demo](https://recon-upi.streamlit.app)** · **[PRD](https://claude.ai/artifact/G8X7k6kSoBh3WZxE6T7kJm)** · Independent portfolio project by Nivedh Mohanan
 
-## Status
+> The demo runs on mock bank data and resets when the app restarts. If it has been idle, it takes about a minute to wake up.
 
-- [x] PRD, AI behaviour spec, data dictionary
-- [x] Mock payment system: 500 UPI transactions + status API
-- [x] API v1: status lookup, classify, draft reply, PSP escalation (spec: docs/api.md)
-- [x] Failure handling: one status retry, then Needs review with the reason shown
-- [x] Audit log: full case record at open, append-only history, case history page at /cases/{id}
-- [x] Possible-fraud flag: route to fraud team, money path held, agent confirms or clears
-- [x] Agent screens (Streamlit): queue, case view with actions, case history
-- [x] End-to-end tests (tests/test_e2e.py) and manual baseline screen (Baseline tab; `python -m recon.baseline report`)
-- [x] Dispute classifier (model)
-- [ ] Reply drafter (model)
-- [x] Rules engine and escalation (code)
-- [x] Ops metrics dashboard (/dashboard, /metrics)
-- [ ] Agent screens
-- [ ] Evaluation on 61 real complaints
+![Queue](docs/screenshots/queue.png)
 
-## Run it
+## The problem
+
+When a UPI payment fails but the money has left the customer's account, RBI rules say it must come back by **T+1** for person-to-person payments and **T+5** for merchant payments. After that the bank owes **Rs 100 a day**. To handle one complaint, an agent has to read a vague message, find the transaction, count the deadline by hand, work out the compensation, decide whether to escalate to the payment service provider bank, and write a reply. Most of these complaints land at three apps, which carry 85.9% of UPI volume (NPCI, Sep 2026).
+
+## What it does
+
+| Part | What it does | Model or code |
+| --- | --- | --- |
+| Classifier | Sorts a complaint into P2P failed, P2M failed, Wrong UPI ID, Out of scope or Needs review | Model (gpt-oss-120b on Groq), with code overrides |
+| Rules engine | RBI deadline, days late, compensation, when to escalate | Code |
+| Possible-fraud flag | OTP shared, remote-access apps, QR "scan to receive", fake army buyers, task scams and more. Holds the refund path until an agent decides | Model and 9 code signals |
+| Failure handling | One retry on a failed status check, then Needs review with the reason shown. Same for model errors, broken output and confidence under 0.8 | Code |
+| Audit log | Full snapshot of each case at open (model, prompt version, rule, draft) plus every later step. The database refuses edits and deletes | Code |
+| Agent screens | Queue ordered by risk, case view with evidence and actions, case history | Streamlit |
+| API | Status lookup, classify, draft reply, escalation (needs an agent id and an idempotency key), case events | FastAPI ([spec](docs/api.md)) |
+
+| Possible fraud | Late P2P failure |
+| --- | --- |
+| ![Fraud case](docs/screenshots/fraud_case.png) | ![Late case](docs/screenshots/late_case.png) |
+
+## Results
+
+**Classifier, on real complaints.** 200 complaints collected and labelled by hand from r/UPI, Play Store 1-star reviews and consumercomplaints.in.
+
+| Run | Complaints | Accuracy | Notes |
+| --- | --- | --- | --- |
+| Dev (prompt tuned on these) | 61 | 84% | |
+| Holdout 1 (never tuned on) | 106 | 78% | 100% recall on P2P and P2M failures. 15 harmful mislabels, 10 of them at 0.8+ confidence |
+| Holdout 2 (fresh, after fixes) | 33 | 85% | 20 fraud complaints: 18 flagged, 1 false alarm in 13 |
+
+Neither holdout reached the 90% pass mark. The failures, and what changed because of them, are in the PRD under "Known failures".
+
+**Timed baseline.** One tester (the builder), 6 cases by hand and 6 matched cases with Recon:
+
+| | By hand | With Recon |
+| --- | --- | --- |
+| Median time per case | 95 s | 25 s |
+| Deadline correct | 33% | 100% |
+| Dispute type correct | 67% | 100% |
+
+This is a small self-test that shows direction, not a production number. The test cases are easier than real complaints.
+
+## Run it locally
 
 ```bash
 pip install -r requirements.txt
-python -m recon.seed            # builds data/recon.db with 500 transactions
-python -m recon.simulate         # optional: simulated agent sessions for the dashboard
-uvicorn recon.api:app --reload  # API docs at /docs, ops dashboard at /dashboard
-python -m pytest
+streamlit run recon/ui.py          # agent screens at http://localhost:8501
+python -m pytest                   # 89 tests
 ```
 
-### Classifier and evaluation
+The classifier needs a free [Groq API key](https://console.groq.com/keys): `export GROQ_API_KEY=...`.
+Without one, `RECON_DEMO_MODEL=1 streamlit run recon/ui.py` uses a keyword stand-in, labelled as such on every screen and in every case record.
 
-Needs a free [Groq](https://console.groq.com/keys) API key.
+Other entry points:
 
 ```bash
-export GROQ_API_KEY=your_key
-# Download the complaints sheet as CSV to data/complaints_test_set.csv, then:
-python -m recon.evaluate            # one run per complaint
-python -m recon.evaluate --runs 3   # with the agreement check
+uvicorn recon.api:app --reload             # API docs at /docs, ops dashboard at /dashboard
+python -m recon.evaluate --split holdout   # score the classifier (needs the Groq key)
+python -m recon.baseline report            # manual vs Recon timing results
 ```
 
 ## Mock data
 
-| What | Based on |
+Transactions are simulated. Their shape comes from public NPCI data:
+
+| What | Source |
 | --- | --- |
-| App mix: PhonePe 53%, Google Pay 38%, Paytm 9% | NPCI UPI Applications, Sep 2026 |
-| Payer banks and debit-reversal success rates | NPCI Top 50 Remitter Banks, Aug 2026 |
+| App mix among the top 3 (PhonePe 53%, Google Pay 38%, Paytm 9%) | NPCI UPI Applications, Sep 2026 |
+| Payer banks and reversal success rates | NPCI Top 50 Remitter Banks, Aug 2026 |
 | Error codes and meanings | NPCI UPI Error and Response Codes v2.9 |
 
-The failure rate is deliberately enriched (about 30% problem cases vs under 1% in real UPI) so every Recon path gets tested.
+About 30% of the mock transactions are problem cases, against under 1% in real UPI, so that every path in Recon gets exercised.
 
 ## Layout
 
 ```
-recon/db.py           schema (5 tables) and RBI rules config
-recon/error_codes.py  NPCI response codes used in the mock data
-recon/seed.py         generates the 500 mock transactions
-recon/api.py          transaction status API (FastAPI)
-recon/api_v1.py       API v1 endpoints (see docs/api.md)
-recon/drafter.py      template reply drafter (never sends)
-recon/case_flow.py    opens a case end to end, applies failure rules
-recon/payment_system.py  mock payment system client, one retry
-recon/case_store.py   case record + append-only audit log
-recon/ui.py           agent screens (streamlit run recon/ui.py)
-recon/rules_engine.py RBI deadline, compensation and escalation (no model)
-recon/classifier.py   reads the complaint, returns dispute type + fields (model)
-recon/evaluate.py     scores the classifier on the 61 real complaints
-recon/metrics.py      ops metrics computed from cases + audit_log
-recon/simulate.py     simulated agent sessions (clearly labelled) for the dashboard
-tests/                API tests
+recon/classifier.py      complaint -> dispute type, fraud signals, code overrides (model)
+recon/rules_engine.py    RBI deadline, compensation, escalation (no model)
+recon/case_flow.py       opens a case end to end, applies the failure rules
+recon/case_store.py      case record and append-only audit log
+recon/api.py, api_v1.py  FastAPI endpoints (spec: docs/api.md)
+recon/ui.py              agent screens (Streamlit)
+recon/evaluate.py        classifier evaluation on the real complaints
+recon/baseline.py        timed manual-vs-Recon test
+recon/seed.py            500 mock transactions
+data/complaints_test_set.csv   the 200 labelled complaints
+tests/                   unit, API, failure, audit, fraud and end-to-end tests
 ```
 
-## Agent screens
+## Limits
 
-```
-pip install -r requirements.txt
-streamlit run recon/ui.py
-```
-
-Opens in the browser. The API runs in-process, so one command is enough. To use a running API
-instead: `RECON_API=http://127.0.0.1:8000 streamlit run recon/ui.py`.
-No Groq key? `RECON_DEMO_MODEL=1 streamlit run recon/ui.py` uses a keyword stand-in, clearly
-labelled, so the screens can be shown without the real model.
-
-## Public demo (Streamlit Community Cloud)
-
-Entry point: `streamlit_app.py`. On a fresh server the app builds the mock bank data and 4 sample
-cases by itself (made with the stand-in model, and their record says so).
-
-Secrets (app settings > Secrets), TOML:
-
-```
-RECON_PUBLIC = "1"
-GROQ_API_KEY = "gsk_..."   # optional: leave out to run the public demo on the stand-in model
-```
-
-`RECON_PUBLIC` hides the Baseline screen, shows a "mock data" notice and caps each visitor at
-10 new cases to protect the free Groq quota.
-
-## Public demo (Hugging Face Spaces)
-
-The `Dockerfile` and the YAML block at the top of this README are what Spaces needs (Docker SDK, port 7860).
-In the Space settings, add a variable `RECON_PUBLIC = 1` and, optionally, a secret `GROQ_API_KEY`.
-Without the key the demo runs on the labelled stand-in model.
+- Status lookup and escalation run against mock systems, not real banks or NPCI.
+- Replies come from fixed English templates; the model doesn't write them yet.
+- The prototype sends complaint text to Groq. A real deployment would need an India-hosted model or masked text (RBI's 2018 rule on storing payment data in India).
+- The ops dashboard runs on simulated cases.
